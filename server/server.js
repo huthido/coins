@@ -321,10 +321,14 @@ const server = http.createServer(async (req, res) => {
   if (fp.includes('..') || fp.startsWith('/server') ) { res.writeHead(403); res.end(); return; }
   fs.readFile(path.join(ROOT, fp), (err, data) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
-    const noCache = fp === '/sw.js' || fp === '/manifest.webmanifest' || fp === '/index.html';
+    // HTML/JS/CSS: no-cache để deploy mới có hiệu lực ngay (max-age khiến
+    // trình duyệt giữ JS cũ 1 giờ, đè cả chiến lược network-first của SW).
+    // Chỉ icon/ảnh mới cache lâu.
+    const ext = path.extname(fp);
+    const longCache = ext === '.png' || ext === '.ico';
     res.writeHead(200, {
-      'Content-Type': MIME[path.extname(fp)] || 'application/octet-stream',
-      'Cache-Control': noCache ? 'no-cache' : 'public, max-age=3600',
+      'Content-Type': MIME[ext] || 'application/octet-stream',
+      'Cache-Control': longCache ? 'public, max-age=86400' : 'no-cache',
     });
     res.end(data);
   });

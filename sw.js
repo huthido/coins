@@ -66,9 +66,10 @@ self.addEventListener('fetch', (e) => {
 
   if (url.origin === self.location.origin) {
     // App shell: ưu tiên MẠNG để bản deploy mới đến người dùng ngay lần tải đầu tiên;
-    // mất mạng mới rơi về cache (vẫn chạy offline đầy đủ).
+    // cache:'no-cache' ép revalidate qua HTTP cache của trình duyệt (nếu không,
+    // max-age cũ có thể trả JS cũ dù đã fetch). Mất mạng mới rơi về cache SW.
     e.respondWith(
-      fetch(req)
+      fetch(req, { cache: 'no-cache' })
         .then((res) => {
           if (res.ok) {
             const copy = res.clone();
