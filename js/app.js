@@ -350,6 +350,10 @@ function visibleTickers() {
     list = state.tickers.filter(t => state.watch.has(t.symbol))
       .filter(t => !state.search || t.base.includes(state.search.toUpperCase()));
   }
+  if (state.filter === 'holding') {
+    list = state.tickers.filter(t => holdings.set && holdings.set.has(t.base))
+      .filter(t => !state.search || t.base.includes(state.search.toUpperCase()));
+  }
   if (state.assetType !== 'all') {
     list = list.filter(t => assetType(t.base) === state.assetType);
   }
@@ -393,8 +397,11 @@ function renderTable() {
     const chgCls = t.changePct >= 0 ? 'chg-up' : 'chg-down';
     const sel = state.selected === t.symbol ? ' class="selected"' : '';
     const watched = state.watch.has(t.symbol);
+    const holdQty = state.filter === 'holding' && holdings.amt.has(t.base)
+      ? ' · giữ ' + holdings.amt.get(t.base).toLocaleString('en-US', { maximumFractionDigits: 6 })
+      : '';
     return `<tr data-sym="${esc(t.symbol)}"${sel}>
-      <td><div class="coin-cell-row"><span class="star${watched ? ' on' : ''}" data-star="${esc(t.symbol)}" title="${watched ? 'Bỏ theo dõi đặc biệt' : 'Theo dõi đặc biệt'}">${watched ? '★' : '☆'}</span><div class="coin-cell"><span class="coin-sym">${esc(t.base)}</span><span class="coin-pair">${esc(t.symbol)}${assetLabel(t.base) ? ' · ' + assetLabel(t.base) : ''}</span></div></div></td>
+      <td><div class="coin-cell-row"><span class="star${watched ? ' on' : ''}" data-star="${esc(t.symbol)}" title="${watched ? 'Bỏ theo dõi đặc biệt' : 'Theo dõi đặc biệt'}">${watched ? '★' : '☆'}</span><div class="coin-cell"><span class="coin-sym">${esc(t.base)}</span><span class="coin-pair">${esc(t.symbol)}${assetLabel(t.base) ? ' · ' + assetLabel(t.base) : ''}${holdQty}</span></div></div></td>
       <td class="num">${fmtUsd(t.price)}</td>
       <td class="num vnd-cell">${fmtVnd(t.price)}</td>
       <td class="num ${chgCls}">${fmtPct(t.changePct)}</td>
@@ -405,7 +412,9 @@ function renderTable() {
     </tr>`;
   }).join('');
   updateSortIndicators();
-  const emptyMsg = state.filter === 'watch'
+  const emptyMsg = state.filter === 'holding'
+    ? (holdings.set ? 'Tài khoản chưa giữ coin nào có cặp USDT (hoặc chỉ giữ stablecoin).' : 'Đang tải danh mục tài sản… Nếu không có gì hiện ra, kiểm tra kết nối API (⚙️).')
+    : state.filter === 'watch'
     ? 'Chưa có coin nào được đánh dấu ★. Bấm vào dấu ☆ cạnh tên coin để theo dõi đặc biệt.'
     : state.assetType !== 'all' && state.filter === 'all' && !state.search
       ? 'Không có coin loại này trong danh sách đang theo dõi (top khối lượng + coin đánh dấu ★). Dùng ô tìm kiếm để phân tích coin cụ thể.'
@@ -1111,6 +1120,61 @@ async function submitTrade() {
   }
 }
 
+/* ==== Tài sản đang có (lọc danh mục từ tài khoản Binance) ==== */
+
+const holdings = { set: null, amt: new Map(), at: 0 };
+
+async function loadHoldings(force = false) {
+  if (!getTradeCfg()) throw new Error('no-api');
+  if (!force && holdings.set && Date.now() - holdings.at < 60_000) return;
+  const acc = await signedFetch('/api/v3/account', { omitZeroBalances: 'true' });
+  holdings.amt.clear();
+  for (const b of acc.balances || []) {
+    let asset = b.asset;
+    // Số dư Binance Earn hiển thị với tiền tố LD (LDBTC…) — gộp về coin gốc
+    if (/^LD[A-Z0-9]{2,}$/.test(asset)) asset = asset.slice(2);
+    const q = parseFloat(b.free) + parseFloat(b.locked);
+    if (q > 0) holdings.amt.set(asset, (holdings.amt.get(asset) || 0) + q);
+  }
+  holdings.set = new Set(holdings.amt.keys());
+  holdings.at = Date.now();
+}
+
+async function applyHoldingFilter() {
+  try {
+    await loadHoldings();
+  } catch {
+    state.filter = 'all';
+    $('filterSel').value = 'all';
+    showToast('Cần kết nối API Binance', 'Bấm ⚙️ API ở góc trên để kết nối trước khi lọc theo tài sản đang có.', 'sell', null);
+    renderTable();
+    return;
+  }
+  // Coin đang giữ nhưng ngoài top khối lượng → thêm vào danh sách theo dõi
+  let added = false;
+  for (const base of holdings.set) {
+    const sym = base + 'USDT';
+    if (!state.extras.has(sym) && !state.tickers.some(t => t.symbol === sym)) {
+      state.extras.add(sym);
+      added = true;
+    }
+  }
+  if (added) {
+    try { await loadTickers(); } catch { /* giữ dữ liệu cũ */ }
+  }
+  renderTable();
+  runAnalysis();
+
+  let totalUsd = 0, nCoin = 0;
+  for (const t of state.tickers) {
+    if (holdings.amt.has(t.base)) { totalUsd += holdings.amt.get(t.base) * t.price; nCoin++; }
+  }
+  const usdt = holdings.amt.get('USDT') || 0;
+  totalUsd += usdt;
+  showToast('💼 Tài sản đang có',
+    `${nCoin} coin + ${usdt.toLocaleString('en-US', { maximumFractionDigits: 2 })} USDT · tổng ≈ ${fmtCompactUsd(totalUsd)} USDT (${fmtVnd(totalUsd)})`, '', null);
+}
+
 /* ==== Dialog cấu hình API ==== */
 
 function bindApiDialog() {
@@ -1361,6 +1425,7 @@ function bindEvents() {
   $('filterSel').addEventListener('change', (e) => {
     state.filter = e.target.value;
     renderTable();
+    if (state.filter === 'holding') applyHoldingFilter();
   });
 
   $('assetSel').addEventListener('change', (e) => {

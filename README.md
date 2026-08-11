@@ -76,6 +76,9 @@ rồi mở `http://localhost:3000` (hoặc cổng tương ứng).
   - *↘ Đà giảm mới*: động lượng vừa đảo chiều giảm (MACD chuyển âm hoặc death cross,
     giá đang giảm, RSI > 30) — cân nhắc bán trước khi giá giảm sâu hơn.
   - Lọc theo đề xuất MUA / BÁN.
+  - *💼 Tài sản đang có* (cần kết nối API): hiển thị đúng các coin đang giữ trong tài
+    khoản Binance (gộp cả số dư Binance Earn), kèm số lượng đang giữ và toast tổng giá
+    trị ước tính (USDT + VND); coin đang giữ ngoài top khối lượng được tự thêm vào bảng.
   - Coin có đà mới được gắn nhãn **MỚI ↗ / MỚI ↘** ngay trong bảng.
 - **★ Theo dõi đặc biệt**: bấm dấu ☆ cạnh tên coin (hoặc trong panel chi tiết) để
   đánh dấu; coin đã đánh dấu luôn ghim lên đầu bảng, có bộ lọc riêng "★ Theo dõi
