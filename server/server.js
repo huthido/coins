@@ -188,6 +188,11 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify({ ok: true }));
     return;
   }
+  if (p === '/push/status') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ subs: subs.length }));
+    return;
+  }
   if (p === '/push/test') {
     // Gửi thông báo thử tới mọi thiết bị đã đăng ký (mở URL này trong trình duyệt là được)
     if (Date.now() - lastTestAt < 30_000) {
