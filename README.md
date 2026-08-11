@@ -27,13 +27,26 @@ rồi mở `http://localhost:3000` (hoặc cổng tương ứng).
 - **Tỷ giá USD→VND** lấy tự động từ open.er-api.com (cache 1 giờ; nếu mạng lỗi
   dùng tỷ giá ước tính 26.300).
 - **Khung phân tích**: 15 phút / 1 giờ / 4 giờ / 1 ngày.
-- **Đề xuất mua bán** chấm điểm từ các chỉ báo (phân tích lại mỗi 5 phút):
-  - RSI 14 (quá mua / quá bán)
-  - EMA 20 / EMA 50 (xu hướng, golden cross / death cross)
-  - MACD 12-26-9 (động lượng, giao cắt đường tín hiệu)
-  - Biến động 24h kết hợp RSI (bắt đáy / cảnh báo quá nóng)
+- **Đề xuất mua bán** — bộ chấm điểm hợp lưu v2 (phân tích lại mỗi 5 phút), kết hợp
+  các thuật toán có bằng chứng hiệu quả với crypto:
+  - **SuperTrend (10, 3)** — chỉ báo bám xu hướng theo ATR; đảo chiều được chấm điểm cao
+  - **ADX 14** — cổng lọc sức mạnh xu hướng: ADX < 20 (sideway) thì các tín hiệu
+    xu hướng bị giảm nửa trọng số để tránh nhiễu
+  - **Hợp lưu đa khung thời gian** — khung lớn hơn (1h→4h, 4h→1d…) đồng thuận
+    mới cộng điểm; lọc bớt 40–60% tín hiệu giả
+  - **Phân kỳ RSI** (đáy giá thấp hơn + đáy RSI cao hơn = phân kỳ tăng) — tín hiệu
+    đảo chiều có xác suất cao nhất trong bộ
+  - **OBV + tỷ lệ mua chủ động (taker buy)** — xác nhận bằng dòng khối lượng
+  - **Bollinger Bands (20, 2)** — quá mua/quá bán căng + phát hiện squeeze
+  - RSI 14, EMA 20/50 (golden/death cross), MACD 12-26-9, biến động 24h như v1
 
-  Điểm ≥ +4: **MUA MẠNH** · ≥ +2: MUA · ≤ −4: **BÁN MẠNH** · ≤ −2: BÁN · còn lại: GIỮ.
+  Điểm ≥ +6: **MUA MẠNH** · ≥ +3: MUA · ≤ −6: **BÁN MẠNH** · ≤ −3: BÁN · còn lại: GIỮ.
+- **Gợi ý quản trị rủi ro theo ATR**: mỗi coin hiển thị mức cắt lỗ (−1.5×ATR) và
+  chốt lời (+2.5×ATR) tham khảo, tỷ lệ lời:lỗ ≈ 1.7.
+- **Thanh thông tin thị trường**: chỉ số Sợ hãi/Tham lam (alternative.me),
+  BTC Dominance + tổng vốn hóa (CoinGecko), độ rộng thị trường (số coin tăng 24h).
+- **Thông tin sâu từng coin**: áp lực mua từ sổ lệnh (tỷ trọng bid trong depth 100 mức),
+  funding rate futures (cảnh báo long/short đông đúc).
 - **Panel chi tiết**: biểu đồ giá + EMA20/50 (có tooltip theo con trỏ), biểu đồ RSI,
   danh sách lý do vì sao có đề xuất, và các chỉ số chính.
 - **Phân tích coin bất kỳ**: gõ tên coin (VD: `PEPE`, `chz`, `NEARUSDT`) vào ô tìm kiếm

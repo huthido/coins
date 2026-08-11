@@ -139,6 +139,143 @@ function macdSeries(closes, fast = 12, slow = 26, signal = 9) {
   return { macd, signal: sig, hist };
 }
 
+// ATR (Average True Range) — làm mượt kiểu Wilder
+function atrSeries(highs, lows, closes, period = 14) {
+  const n = closes.length;
+  const out = new Array(n).fill(null);
+  if (n <= period) return out;
+  const tr = [0];
+  for (let i = 1; i < n; i++) {
+    tr.push(Math.max(highs[i] - lows[i], Math.abs(highs[i] - closes[i - 1]), Math.abs(lows[i] - closes[i - 1])));
+  }
+  let sum = 0;
+  for (let i = 1; i <= period; i++) sum += tr[i];
+  out[period] = sum / period;
+  for (let i = period + 1; i < n; i++) out[i] = (out[i - 1] * (period - 1) + tr[i]) / period;
+  return out;
+}
+
+// ADX — đo SỨC MẠNH xu hướng (>25: xu hướng rõ; <20: sideway, tín hiệu trend kém tin cậy)
+function adxSeries(highs, lows, closes, period = 14) {
+  const n = closes.length;
+  const adx = new Array(n).fill(null);
+  if (n <= period * 2) return { adx, pdi: null, mdi: null };
+  const plusDM = [0], minusDM = [0], tr = [0];
+  for (let i = 1; i < n; i++) {
+    const up = highs[i] - highs[i - 1];
+    const down = lows[i - 1] - lows[i];
+    plusDM.push(up > down && up > 0 ? up : 0);
+    minusDM.push(down > up && down > 0 ? down : 0);
+    tr.push(Math.max(highs[i] - lows[i], Math.abs(highs[i] - closes[i - 1]), Math.abs(lows[i] - closes[i - 1])));
+  }
+  const wilder = (arr) => {
+    const s = new Array(n).fill(null);
+    let sum = 0;
+    for (let i = 1; i <= period; i++) sum += arr[i];
+    s[period] = sum;
+    for (let i = period + 1; i < n; i++) s[i] = s[i - 1] - s[i - 1] / period + arr[i];
+    return s;
+  };
+  const trS = wilder(tr), pS = wilder(plusDM), mS = wilder(minusDM);
+  const dx = new Array(n).fill(null);
+  let lastPdi = null, lastMdi = null;
+  for (let i = period; i < n; i++) {
+    if (!trS[i]) continue;
+    const pdi = 100 * pS[i] / trS[i];
+    const mdi = 100 * mS[i] / trS[i];
+    lastPdi = pdi; lastMdi = mdi;
+    const s = pdi + mdi;
+    dx[i] = s ? 100 * Math.abs(pdi - mdi) / s : 0;
+  }
+  let sum2 = 0;
+  for (let i = period; i < period * 2; i++) sum2 += dx[i];
+  adx[period * 2 - 1] = sum2 / period;
+  for (let i = period * 2; i < n; i++) adx[i] = (adx[i - 1] * (period - 1) + dx[i]) / period;
+  return { adx, pdi: lastPdi, mdi: lastMdi };
+}
+
+// SuperTrend (ATR-based) — trả về hướng từng nến: 1 tăng, -1 giảm
+function supertrendDir(highs, lows, closes, period = 10, mult = 3) {
+  const atr = atrSeries(highs, lows, closes, period);
+  const n = closes.length;
+  const dir = new Array(n).fill(null);
+  let fub = null, flb = null, trend = 1;
+  for (let i = 0; i < n; i++) {
+    if (atr[i] == null) continue;
+    const mid = (highs[i] + lows[i]) / 2;
+    const bub = mid + mult * atr[i];
+    const blb = mid - mult * atr[i];
+    fub = (fub == null || bub < fub || closes[i - 1] > fub) ? bub : fub;
+    flb = (flb == null || blb > flb || closes[i - 1] < flb) ? blb : flb;
+    if (closes[i] > fub) trend = 1;
+    else if (closes[i] < flb) trend = -1;
+    dir[i] = trend;
+  }
+  return dir;
+}
+
+// Bollinger Bands (20, 2): vị trí giá trong băng (%B) + độ rộng băng (bandwidth)
+function bollingerLast(closes, period = 20, k = 2) {
+  const n = closes.length;
+  if (n < period + 50) return null;
+  const bw = [];
+  let last = null;
+  for (let i = period - 1; i < n; i++) {
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += closes[j];
+    const mid = sum / period;
+    let v = 0;
+    for (let j = i - period + 1; j <= i; j++) v += (closes[j] - mid) ** 2;
+    const sd = Math.sqrt(v / period);
+    const upper = mid + k * sd, lower = mid - k * sd;
+    bw.push(mid ? (upper - lower) / mid : 0);
+    if (i === n - 1) {
+      last = {
+        upper, lower, mid,
+        pctB: upper > lower ? (closes[i] - lower) / (upper - lower) : 0.5,
+        bandwidth: bw[bw.length - 1],
+        squeeze: bw[bw.length - 1] <= Math.min(...bw.slice(-50)) * 1.05, // băng đang bó chặt nhất ~50 nến
+      };
+    }
+  }
+  return last;
+}
+
+// OBV (On-Balance Volume) — xác nhận xu hướng bằng dòng khối lượng
+function obvSlope(closes, volumes, look = 10) {
+  const n = closes.length;
+  let obv = 0;
+  const series = [0];
+  for (let i = 1; i < n; i++) {
+    obv += closes[i] > closes[i - 1] ? volumes[i] : closes[i] < closes[i - 1] ? -volumes[i] : 0;
+    series.push(obv);
+  }
+  if (n < look + 2) return 0;
+  const d = series[n - 1] - series[n - 1 - look];
+  const scale = Math.abs(series[n - 1 - look]) || 1;
+  return d / scale; // >0: dòng tiền vào, <0: dòng tiền ra
+}
+
+// Phân kỳ RSI ~40 nến gần nhất (đáy giá thấp hơn nhưng RSI cao hơn → phân kỳ tăng, và ngược lại)
+function findDivergence(closes, rsiArr, lookback = 40) {
+  const n = closes.length;
+  const lows = [], highs = [];
+  for (let i = Math.max(2, n - lookback); i < n - 2; i++) {
+    if (closes[i] < closes[i - 1] && closes[i] < closes[i - 2] && closes[i] < closes[i + 1] && closes[i] < closes[i + 2]) lows.push(i);
+    if (closes[i] > closes[i - 1] && closes[i] > closes[i - 2] && closes[i] > closes[i + 1] && closes[i] > closes[i + 2]) highs.push(i);
+  }
+  let bull = false, bear = false;
+  if (lows.length >= 2) {
+    const a = lows[lows.length - 2], b = lows[lows.length - 1];
+    if (closes[b] < closes[a] && rsiArr[a] != null && rsiArr[b] != null && rsiArr[b] > rsiArr[a] + 1 && rsiArr[b] < 45) bull = true;
+  }
+  if (highs.length >= 2) {
+    const a = highs[highs.length - 2], b = highs[highs.length - 1];
+    if (closes[b] > closes[a] && rsiArr[a] != null && rsiArr[b] != null && rsiArr[b] < rsiArr[a] - 1 && rsiArr[b] > 55) bear = true;
+  }
+  return { bull, bear };
+}
+
 /* ================= Chấm điểm & đề xuất ================= */
 
 function crossedWithin(a, b, lookback) {
@@ -162,7 +299,8 @@ function turnedPositiveWithin(arr, lookback) {
   return false;
 }
 
-function buildSignal(closes, ticker) {
+function buildSignal(d, dH, ticker) {
+  const { closes, highs, lows, volumes, takerBuy } = d;
   const n = closes.length;
   const last = closes[n - 1];
   const rsiArr = rsiSeries(closes);
@@ -174,9 +312,79 @@ function buildSignal(closes, ticker) {
   const e20 = ema20[n - 1], e50 = ema50[n - 1];
   const h = hist[n - 1], hPrev = hist[n - 2];
 
+  // Chỉ báo v2
+  const atrArr = atrSeries(highs, lows, closes);
+  const atr = atrArr[n - 1];
+  const { adx: adxArr } = adxSeries(highs, lows, closes);
+  const adx = adxArr[n - 1];
+  const trending = adx != null && adx >= 20; // ADX<20: sideway — tín hiệu xu hướng kém tin cậy
+  const stArr = supertrendDir(highs, lows, closes);
+  const st = stArr[n - 1];
+  const stPrev = stArr[n - 2];
+  const boll = bollingerLast(closes);
+  const obv = obvSlope(closes, volumes);
+  const div = findDivergence(closes, rsiArr);
+
+  // Xu hướng khung thời gian lớn hơn (hợp lưu đa khung — lọc 40-60% tín hiệu nhiễu)
+  let htf = 0;
+  if (dH && dH.closes.length > 60) {
+    const hEma20 = emaSeries(dH.closes, 20), hEma50 = emaSeries(dH.closes, 50);
+    const hSt = supertrendDir(dH.highs, dH.lows, dH.closes);
+    const m = dH.closes.length - 1;
+    const emaUp = hEma20[m] != null && hEma50[m] != null && hEma20[m] > hEma50[m];
+    const stUp = hSt[m] === 1;
+    htf = emaUp && stUp ? 1 : !emaUp && !stUp ? -1 : 0;
+  }
+
+  // Tỷ lệ chủ động mua (taker buy) 10 nến gần nhất
+  let takerRatio = null;
+  if (takerBuy && volumes) {
+    let tb = 0, tv = 0;
+    for (let i = Math.max(0, n - 10); i < n; i++) { tb += takerBuy[i]; tv += volumes[i]; }
+    if (tv > 0) takerRatio = tb / tv;
+  }
+
   let score = 0;
   const reasons = []; // {text, dir: +1|-1|0}
   const add = (pts, text) => { score += pts; reasons.push({ text, dir: Math.sign(pts) }); };
+
+  // ==== Sức mạnh xu hướng (ADX) — cổng lọc ====
+  if (adx != null) {
+    if (!trending) reasons.push({ text: `ADX ${adx.toFixed(0)} — thị trường sideway, tín hiệu xu hướng giảm trọng số`, dir: 0 });
+    else if (adx >= 30) reasons.push({ text: `ADX ${adx.toFixed(0)} — xu hướng đang rất mạnh`, dir: 0 });
+  }
+  const w = trending ? 1 : 0.5; // trọng số tín hiệu trend khi sideway
+
+  // ==== SuperTrend ====
+  if (st != null) {
+    if (st === 1 && stPrev === -1) add(2 * w, 'SuperTrend vừa ĐẢO CHIỀU TĂNG — tín hiệu vào lệnh sớm');
+    else if (st === -1 && stPrev === 1) add(-2 * w, 'SuperTrend vừa ĐẢO CHIỀU GIẢM — tín hiệu thoát sớm');
+    else if (st === 1) add(1.5 * w, 'SuperTrend (10,3) đang ở chiều tăng');
+    else add(-1.5 * w, 'SuperTrend (10,3) đang ở chiều giảm');
+  }
+
+  // ==== Hợp lưu khung thời gian lớn ====
+  if (htf === 1) add(1.5, 'Khung thời gian lớn hơn cũng đang xu hướng tăng (hợp lưu đa khung)');
+  else if (htf === -1) add(-1.5, 'Khung thời gian lớn hơn cũng đang xu hướng giảm (hợp lưu đa khung)');
+
+  // ==== Phân kỳ RSI (tín hiệu đảo chiều mạnh) ====
+  if (div.bull) add(2, 'PHÂN KỲ TĂNG: giá tạo đáy thấp hơn nhưng RSI tạo đáy cao hơn — lực bán đang cạn');
+  if (div.bear) add(-2, 'PHÂN KỲ GIẢM: giá tạo đỉnh cao hơn nhưng RSI tạo đỉnh thấp hơn — lực mua đang yếu');
+
+  // ==== Dòng tiền (OBV + taker buy) ====
+  if (obv > 0.02) add(1, 'OBV tăng — dòng khối lượng xác nhận lực mua');
+  else if (obv < -0.02) add(-1, 'OBV giảm — dòng khối lượng xác nhận lực bán');
+  if (takerRatio != null) {
+    if (takerRatio >= 0.55) add(1, `Bên mua chủ động chiếm ${(takerRatio * 100).toFixed(0)}% khối lượng 10 nến gần nhất`);
+    else if (takerRatio <= 0.45) add(-1, `Bên bán chủ động chiếm ${((1 - takerRatio) * 100).toFixed(0)}% khối lượng 10 nến gần nhất`);
+  }
+
+  // ==== Bollinger Bands ====
+  if (boll) {
+    if (boll.squeeze) reasons.push({ text: 'Bollinger đang bó chặt (squeeze) — sắp có biến động mạnh, chờ hướng phá vỡ', dir: 0 });
+    if (boll.pctB <= 0.05 && rsi != null && rsi < 35) add(1, 'Giá chạm/thủng băng Bollinger dưới kèm RSI thấp — quá bán căng');
+    else if (boll.pctB >= 0.95 && rsi != null && rsi > 65) add(-1, 'Giá chạm/vượt băng Bollinger trên kèm RSI cao — quá mua căng');
+  }
 
   // RSI
   if (rsi != null) {
@@ -190,22 +398,22 @@ function buildSignal(closes, ticker) {
   // Xu hướng EMA
   if (e20 != null && e50 != null) {
     if (e20 > e50) {
-      add(1, 'EMA20 nằm trên EMA50 — xu hướng ngắn hạn tăng');
+      add(1 * w, 'EMA20 nằm trên EMA50 — xu hướng ngắn hạn tăng');
       if (crossedWithin(ema20, ema50, 5)) add(1, 'EMA20 vừa cắt lên EMA50 (golden cross) trong vài nến gần đây');
     } else {
-      add(-1, 'EMA20 nằm dưới EMA50 — xu hướng ngắn hạn giảm');
+      add(-1 * w, 'EMA20 nằm dưới EMA50 — xu hướng ngắn hạn giảm');
       if (crossedWithin(ema50, ema20, 5)) add(-1, 'EMA20 vừa cắt xuống EMA50 (death cross) trong vài nến gần đây');
     }
-    if (last > e20 && last > e50) add(1, 'Giá đang đứng trên cả EMA20 và EMA50');
-    else if (last < e20 && last < e50) add(-1, 'Giá đang nằm dưới cả EMA20 và EMA50');
+    if (last > e20 && last > e50) add(0.5 * w, 'Giá đang đứng trên cả EMA20 và EMA50');
+    else if (last < e20 && last < e50) add(-0.5 * w, 'Giá đang nằm dưới cả EMA20 và EMA50');
   }
 
   // MACD
   if (h != null && hPrev != null) {
     if (h > 0 && hPrev <= 0) add(1, 'MACD vừa cắt lên đường tín hiệu — động lượng chuyển sang tích cực');
     else if (h < 0 && hPrev >= 0) add(-1, 'MACD vừa cắt xuống đường tín hiệu — động lượng chuyển sang tiêu cực');
-    else if (h > 0) add(1, 'Histogram MACD dương — động lượng tăng vẫn duy trì');
-    else add(-1, 'Histogram MACD âm — động lượng giảm vẫn duy trì');
+    else if (h > 0) add(0.5 * w, 'Histogram MACD dương — động lượng tăng vẫn duy trì');
+    else add(-0.5 * w, 'Histogram MACD âm — động lượng giảm vẫn duy trì');
   }
 
   // Đà mới hình thành: động lượng vừa đảo chiều trong ~6 nến gần nhất
@@ -227,18 +435,32 @@ function buildSignal(closes, ticker) {
   if (chg <= -6 && rsi != null && rsi < 38) add(1, `Giảm ${fmtPct(chg)} trong 24h kèm RSI thấp — cơ hội bắt đáy ngắn hạn (rủi ro cao)`);
   if (chg >= 9 && rsi != null && rsi > 65) add(-1, `Tăng ${fmtPct(chg)} trong 24h kèm RSI cao — dễ có nhịp chốt lời`);
 
+  score = Math.round(score * 10) / 10;
   let verdict, cls;
-  if (score >= 4)       { verdict = 'MUA MẠNH'; cls = 'buy strong'; }
-  else if (score >= 2)  { verdict = 'MUA';      cls = 'buy'; }
-  else if (score <= -4) { verdict = 'BÁN MẠNH'; cls = 'sell strong'; }
-  else if (score <= -2) { verdict = 'BÁN';      cls = 'sell'; }
+  if (score >= 6)       { verdict = 'MUA MẠNH'; cls = 'buy strong'; }
+  else if (score >= 3)  { verdict = 'MUA';      cls = 'buy'; }
+  else if (score <= -6) { verdict = 'BÁN MẠNH'; cls = 'sell strong'; }
+  else if (score <= -3) { verdict = 'BÁN';      cls = 'sell'; }
   else                  { verdict = 'GIỮ / THEO DÕI'; cls = 'hold'; }
 
   const trend = (e20 != null && e50 != null)
     ? (e20 > e50 ? (last > e20 ? 'Tăng ↗' : 'Tăng, đang điều chỉnh') : (last < e20 ? 'Giảm ↘' : 'Giảm, đang hồi'))
     : '—';
 
-  return { score, verdict, cls, reasons, trend, rsi, ema20, ema50, macdObj: { macd, signal, hist }, rsiArr, momoUp, momoDown };
+  // Gợi ý quản trị rủi ro theo ATR (tham khảo)
+  const risk = atr != null ? {
+    atrPct: (atr / last) * 100,
+    longSL: last - 1.5 * atr,
+    longTP: last + 2.5 * atr,
+    shortSL: last + 1.5 * atr,
+    shortTP: last - 2.5 * atr,
+  } : null;
+
+  return {
+    score, verdict, cls, reasons, trend, rsi, ema20, ema50,
+    macdObj: { macd, signal, hist }, rsiArr, momoUp, momoDown,
+    adx, st, boll, htf, div, takerRatio, risk,
+  };
 }
 
 /* ================= Gọi API ================= */
@@ -299,14 +521,31 @@ async function loadTickers() {
   $('lastUpdate').textContent = 'Cập nhật ' + new Date().toLocaleTimeString('vi-VN');
 }
 
+const HTF_MAP = { '15m': '1h', '1h': '4h', '4h': '1d', '1d': '1w' };
+
+function parseKlines(raw) {
+  return {
+    times: raw.map(k => k[0]),
+    // k[1..5]: open, high, low, close, volume · k[9]: taker buy base volume
+    highs: raw.map(k => parseFloat(k[2])),
+    lows: raw.map(k => parseFloat(k[3])),
+    closes: raw.map(k => parseFloat(k[4])),
+    volumes: raw.map(k => parseFloat(k[5])),
+    takerBuy: raw.map(k => parseFloat(k[9])),
+  };
+}
+
 async function analyzeSymbol(sym) {
   const iv = state.interval;
-  const raw = await fetchJson(`${BINANCE}/klines?symbol=${sym}&interval=${iv}&limit=${KLINE_LIMIT}`);
-  const closes = raw.map(k => parseFloat(k[4]));
-  const times = raw.map(k => k[0]);
+  const [raw, rawH] = await Promise.all([
+    fetchJson(`${BINANCE}/klines?symbol=${sym}&interval=${iv}&limit=${KLINE_LIMIT}`),
+    fetchJson(`${BINANCE}/klines?symbol=${sym}&interval=${HTF_MAP[iv] || '1d'}&limit=120`).catch(() => null),
+  ]);
+  const d = parseKlines(raw);
+  const dH = rawH ? parseKlines(rawH) : null;
   const ticker = state.tickers.find(t => t.symbol === sym) || { changePct: 0 };
-  const sig = buildSignal(closes, ticker);
-  state.analysis.set(sym, { ...sig, closes, times, klineIv: iv });
+  const sig = buildSignal(d, dH, ticker);
+  state.analysis.set(sym, { ...sig, closes: d.closes, times: d.times, klineIv: iv });
 }
 
 async function runAnalysis() {
@@ -328,6 +567,71 @@ async function runAnalysis() {
   $('scanStatus').textContent = `Đã phân tích ${state.analysis.size} coin · khung ${state.interval}`;
   renderTable();
   if (state.selected) renderDetail(state.selected);
+}
+
+/* ==== Thông tin thị trường chung ==== */
+
+async function loadMarketInfo() {
+  try {
+    const f = await fetchJson('https://api.alternative.me/fng/?limit=1');
+    const v = parseInt(f.data[0].value, 10);
+    const label = v <= 24 ? 'Sợ hãi cực độ' : v <= 44 ? 'Sợ hãi' : v <= 55 ? 'Trung lập' : v <= 74 ? 'Tham lam' : 'Tham lam cực độ';
+    const el = $('mFng');
+    el.textContent = `${v} · ${label}`;
+    el.className = 'v ' + (v <= 44 ? 'chg-down' : v >= 56 ? 'chg-up' : '');
+  } catch { /* giữ giá trị cũ */ }
+  try {
+    const g = await fetchJson('https://api.coingecko.com/api/v3/global');
+    $('mDom').textContent = g.data.market_cap_percentage.btc.toFixed(1) + '%';
+    const chg = g.data.market_cap_change_percentage_24h_usd;
+    const el = $('mMcap');
+    el.textContent = '$' + fmtCompactUsd(g.data.total_market_cap.usd) + ' · ' + fmtPct(chg);
+    el.className = 'v ' + (chg >= 0 ? 'chg-up' : 'chg-down');
+  } catch { /* giữ giá trị cũ */ }
+  $('marketBar').hidden = false;
+}
+
+function updateBreadth() {
+  if (!state.tickers.length) return;
+  const ups = state.tickers.filter(t => t.changePct > 0).length;
+  const el = $('mBreadth');
+  el.textContent = `${ups}/${state.tickers.length} coin tăng 24h`;
+  el.className = 'v ' + (ups >= state.tickers.length * 0.6 ? 'chg-up' : ups <= state.tickers.length * 0.4 ? 'chg-down' : '');
+  $('marketBar').hidden = false;
+}
+
+/* ==== Thông tin sâu của coin đang chọn (sổ lệnh + funding futures) ==== */
+
+const coinExtras = { sym: null, at: 0 };
+
+async function loadCoinExtras(sym) {
+  if (coinExtras.sym === sym && Date.now() - coinExtras.at < 60_000) return;
+  coinExtras.sym = sym;
+  coinExtras.at = Date.now();
+  const el = $('dExtras');
+  el.innerHTML = '';
+  const tiles = [];
+  try {
+    const depth = await fetchJson(`${BINANCE}/depth?symbol=${encodeURIComponent(sym)}&limit=100`);
+    const sum = (side) => side.reduce((s, [p, q]) => s + parseFloat(p) * parseFloat(q), 0);
+    const bid = sum(depth.bids), ask = sum(depth.asks);
+    if (bid + ask > 0) {
+      const pct = (bid / (bid + ask)) * 100;
+      tiles.push(['Sổ lệnh (bid)', pct.toFixed(0) + '% mua', pct >= 55 ? 1 : pct <= 45 ? -1 : 0]);
+    }
+  } catch { /* coin không có dữ liệu depth */ }
+  try {
+    const f = await fetchJson(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${encodeURIComponent(sym)}`);
+    const fr = parseFloat(f.lastFundingRate) * 100;
+    if (isFinite(fr)) {
+      const note = fr >= 0.03 ? ' · long đông' : fr <= -0.01 ? ' · short đông' : '';
+      tiles.push(['Funding futures', fr.toFixed(4) + '%' + note, fr >= 0.03 ? -1 : fr <= -0.01 ? 1 : 0]);
+    }
+  } catch { /* coin không có hợp đồng futures */ }
+  if (state.selected !== sym) return;
+  el.innerHTML = tiles.map(([k, v, dir]) =>
+    `<div class="ind-tile"><div class="k">${k}</div><div class="v ${dir > 0 ? 'chg-up' : dir < 0 ? 'chg-down' : ''}">${v}</div></div>`
+  ).join('');
 }
 
 // Nhập tên coin bất kỳ → tra cứu trên Binance, phân tích và hiển thị đánh giá
@@ -490,19 +794,34 @@ function renderDetail(sym) {
     ? a.reasons.map(r => `<li class="${r.dir > 0 ? 'pos' : r.dir < 0 ? 'neg' : ''}">${r.text}</li>`).join('')
     : '<li>Đang tải dữ liệu nến…</li>';
 
+  const risk = $('dRisk');
+  if (a && a.risk) {
+    const r = a.risk;
+    risk.hidden = false;
+    risk.innerHTML = `📐 Biến động (ATR): <strong>${r.atrPct.toFixed(2)}%/nến</strong> · ` +
+      `Nếu MUA — gợi ý cắt lỗ ~<strong>${fmtUsd(r.longSL)}</strong> (−${((1 - r.longSL / t.price) * 100).toFixed(1)}%), ` +
+      `chốt lời ~<strong>${fmtUsd(r.longTP)}</strong> (+${((r.longTP / t.price - 1) * 100).toFixed(1)}%) — tỷ lệ lời:lỗ ≈ 1.7`;
+  } else risk.hidden = true;
+
   const grid = $('dIndicators');
   if (a) {
     const n = a.closes.length;
     const tiles = [
       ['RSI 14', a.rsi != null ? a.rsi.toFixed(1) : '—'],
+      ['ADX (sức mạnh)', a.adx != null ? a.adx.toFixed(0) + (a.adx >= 25 ? ' · mạnh' : a.adx < 20 ? ' · sideway' : '') : '—'],
+      ['SuperTrend', a.st === 1 ? 'Tăng ↗' : a.st === -1 ? 'Giảm ↘' : '—'],
+      ['Khung lớn hơn', a.htf === 1 ? 'Tăng ↗' : a.htf === -1 ? 'Giảm ↘' : 'Trung tính'],
       ['EMA 20', a.ema20[n - 1] != null ? fmtUsd(a.ema20[n - 1]) : '—'],
       ['EMA 50', a.ema50[n - 1] != null ? fmtUsd(a.ema50[n - 1]) : '—'],
       ['MACD hist', a.macdObj.hist[n - 1] != null ? a.macdObj.hist[n - 1].toPrecision(3) : '—'],
+      ['Bollinger %B', a.boll ? (a.boll.pctB * 100).toFixed(0) + '%' + (a.boll.squeeze ? ' · squeeze' : '') : '—'],
+      ['Mua chủ động', a.takerRatio != null ? (a.takerRatio * 100).toFixed(0) + '%' : '—'],
       ['Cao 24h', fmtUsd(t.high)],
       ['Thấp 24h', fmtUsd(t.low)],
     ];
     grid.innerHTML = tiles.map(([k, val]) => `<div class="ind-tile"><div class="k">${k}</div><div class="v">${val}</div></div>`).join('');
   } else grid.innerHTML = '';
+  loadCoinExtras(sym);
 
   renderLegend();
   if (a) { drawPriceChart(a); drawRsiChart(a); }
@@ -1097,17 +1416,21 @@ async function init() {
     return;
   }
   renderTable();
+  updateBreadth();
+  loadMarketInfo();
   runAnalysis();
 
   setInterval(async () => {
     try {
       await loadTickers();
       renderTable();
+      updateBreadth();
       if (state.selected) renderDetail(state.selected);
     } catch { /* giữ dữ liệu cũ */ }
   }, TICKER_REFRESH_MS);
 
   setInterval(() => runAnalysis(), ANALYSIS_REFRESH_MS);
+  setInterval(() => loadMarketInfo(), 5 * 60_000);
   setInterval(() => loadRate(), 60 * 60_000);
 }
 

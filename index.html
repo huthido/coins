@@ -57,6 +57,21 @@
     <div class="status-pill" id="scanStatus"></div>
   </div>
 
+  <div class="market-bar" id="marketBar" hidden>
+    <div class="m-tile" title="Chỉ số tâm lý thị trường (alternative.me): 0 = sợ hãi cực độ, 100 = tham lam cực độ. Tham lam cực độ thường là vùng rủi ro khi mua đuổi.">
+      <span class="k">Sợ hãi / Tham lam</span><span class="v" id="mFng">—</span>
+    </div>
+    <div class="m-tile" title="Tỷ trọng vốn hóa BTC — tăng: tiền dồn về BTC, altcoin yếu; giảm: mùa altcoin">
+      <span class="k">BTC Dominance</span><span class="v" id="mDom">—</span>
+    </div>
+    <div class="m-tile" title="Tổng vốn hóa thị trường crypto (CoinGecko) và thay đổi 24h">
+      <span class="k">Vốn hóa thị trường</span><span class="v" id="mMcap">—</span>
+    </div>
+    <div class="m-tile" title="Số coin tăng giá 24h trong danh sách theo dõi — đo độ rộng của sóng tăng/giảm">
+      <span class="k">Độ rộng thị trường</span><span class="v" id="mBreadth">—</span>
+    </div>
+  </div>
+
   <main class="layout">
     <section class="panel table-panel">
       <div class="table-scroll">
@@ -133,7 +148,9 @@
         <div class="reason-box">
           <h3>Vì sao có đề xuất này?</h3>
           <ul id="dReasons"></ul>
+          <div class="risk-line" id="dRisk" hidden></div>
           <div class="ind-grid" id="dIndicators"></div>
+          <div class="ind-grid" id="dExtras"></div>
         </div>
       </div>
     </section>
