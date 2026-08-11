@@ -66,6 +66,7 @@ const EXCLUDE_SUFFIX = /(UP|DOWN|BULL|BEAR)$/;
 const prev = new Map();
 const lastSent = new Map();
 let firstScan = true;
+let lastTestAt = 0;
 
 const fmtUsd = (p) => p >= 1 ? p.toLocaleString('en-US', { maximumFractionDigits: p >= 100 ? 2 : 4 }) : p.toPrecision(4);
 
@@ -185,6 +186,25 @@ const server = http.createServer(async (req, res) => {
     }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+  if (p === '/push/test') {
+    // Gửi thông báo thử tới mọi thiết bị đã đăng ký (mở URL này trong trình duyệt là được)
+    if (Date.now() - lastTestAt < 30_000) {
+      res.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, msg: 'Chờ 30 giây giữa các lần test' }));
+      return;
+    }
+    lastTestAt = Date.now();
+    const n = subs.length;
+    await broadcast({
+      title: '🔔 Test Web Push từ Coins',
+      body: `Hoạt động tốt! ${n} thiết bị đã đăng ký · ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`,
+      tag: 'coins-test',
+    });
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ ok: true, sent: n, remaining: subs.length }));
+    console.log(`Push test → ${n} thiết bị (còn lại sau dọn dẹp: ${subs.length})`);
     return;
   }
   if (p === '/healthz') { res.writeHead(200); res.end('ok'); return; }
