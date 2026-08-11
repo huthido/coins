@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coins — Theo dõi thị trường & đề xuất mua bán</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">◆</span>
+      <div>
+        <h1>Coins</h1>
+        <p class="sub">Theo dõi thị trường crypto · dữ liệu Binance</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="rate-box" title="Tỷ giá dùng để quy đổi giá coin sang VND">
+        <span class="rate-label">1 USDT ≈</span>
+        <span class="rate-value" id="usdVndRate">—</span>
+        <span class="rate-label">VND</span>
+      </div>
+      <div class="clock" id="lastUpdate">Đang tải…</div>
+      <button class="btn" id="refreshBtn" title="Làm mới dữ liệu ngay">⟳ Làm mới</button>
+    </div>
+  </header>
+
+  <div class="controls">
+    <input type="search" id="searchBox" placeholder="Tìm / nhập tên coin rồi Enter (VD: PEPE)" autocomplete="off">
+    <button class="btn" id="lookupBtn" title="Phân tích & đánh giá coin theo tên vừa nhập">🔎 Phân tích</button>
+    <div class="seg" id="intervalSeg" role="tablist" aria-label="Khung thời gian phân tích">
+      <button data-iv="15m">15p</button>
+      <button data-iv="1h" class="active">1 giờ</button>
+      <button data-iv="4h">4 giờ</button>
+      <button data-iv="1d">1 ngày</button>
+    </div>
+    <select id="filterSel" title="Lọc danh sách coin">
+      <option value="all">Lọc: Tất cả coin</option>
+      <option value="watch">Lọc: ★ Theo dõi đặc biệt</option>
+      <option value="momoUp">Lọc: ↗ Đà tăng mới — cơ hội mua sớm</option>
+      <option value="momoDown">Lọc: ↘ Đà giảm mới — bán trước khi giảm sâu</option>
+      <option value="buy">Lọc: Đề xuất MUA</option>
+      <option value="sell">Lọc: Đề xuất BÁN</option>
+    </select>
+    <select id="sortSel" title="Sắp xếp danh sách">
+      <option value="strength">Sắp xếp: Tín hiệu mạnh nhất</option>
+      <option value="volume">Sắp xếp: Khối lượng 24h</option>
+      <option value="change">Sắp xếp: % thay đổi 24h</option>
+      <option value="name">Sắp xếp: Tên coin</option>
+    </select>
+    <div class="status-pill" id="scanStatus"></div>
+  </div>
+
+  <main class="layout">
+    <section class="panel table-panel">
+      <div class="table-scroll">
+        <table id="coinTable">
+          <thead>
+            <tr id="headRow">
+              <th class="sortable" data-key="name">Coin<span class="sort-ind"></span></th>
+              <th class="num sortable" data-key="price">Giá (USDT)<span class="sort-ind"></span></th>
+              <th class="num sortable" data-key="price">Giá (VND)<span class="sort-ind"></span></th>
+              <th class="num sortable" data-key="change">24h<span class="sort-ind"></span></th>
+              <th class="num sortable" data-key="volume">KL 24h<span class="sort-ind"></span></th>
+              <th class="num sortable" data-key="rsi">RSI<span class="sort-ind"></span></th>
+              <th>Xu hướng</th>
+              <th class="sortable" data-key="score">Đề xuất<span class="sort-ind"></span></th>
+            </tr>
+          </thead>
+          <tbody id="coinRows">
+            <tr><td colspan="8" class="loading-cell">Đang tải dữ liệu thị trường…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="splitter" id="splitter" role="separator" aria-orientation="vertical"
+         title="Kéo để chỉnh tỷ lệ hai khung — nháy đúp để đặt lại"></div>
+
+    <section class="panel detail-panel" id="detailPanel">
+      <div class="detail-empty" id="detailEmpty">Chọn một coin ở bảng bên trái để xem phân tích chi tiết.</div>
+      <div class="detail-body" id="detailBody" hidden>
+        <div class="detail-head">
+          <div>
+            <div class="name-row">
+              <h2 id="dName">—</h2>
+              <button id="dWatchBtn" class="star-btn" title="Bật/tắt theo dõi đặc biệt">☆</button>
+            </div>
+            <div class="detail-price">
+              <span id="dPriceUsd" class="big">—</span>
+              <span id="dPriceVnd" class="vnd">—</span>
+              <span id="dChange" class="chg">—</span>
+            </div>
+          </div>
+          <div class="verdict" id="dVerdict">—</div>
+        </div>
+
+        <div class="chart-wrap">
+          <div class="chart-legend" id="priceLegend"></div>
+          <div class="chart-holder">
+            <canvas id="priceChart"></canvas>
+            <div class="tooltip" id="chartTip" hidden></div>
+          </div>
+          <div class="chart-title-row"><span class="chart-subtitle">RSI 14</span></div>
+          <div class="chart-holder rsi-holder">
+            <canvas id="rsiChart"></canvas>
+          </div>
+        </div>
+
+        <div class="reason-box">
+          <h3>Vì sao có đề xuất này?</h3>
+          <ul id="dReasons"></ul>
+          <div class="ind-grid" id="dIndicators"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="disclaimer">
+    ⚠️ Đây là công cụ tham khảo dựa trên chỉ báo kỹ thuật (RSI, EMA, MACD), <strong>không phải lời khuyên đầu tư</strong>.
+    Thị trường tiền ảo biến động rất mạnh — luôn tự nghiên cứu và chỉ đầu tư số tiền bạn chấp nhận mất.
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
