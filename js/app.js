@@ -1136,6 +1136,34 @@ function bindTradeEvents() {
   $('tradeSubmit').addEventListener('click', submitTrade);
 }
 
+/* ==== Chuyển theme sáng / tối / tự động ==== */
+
+function applyTheme(mode) {
+  const root = document.documentElement;
+  if (root && root.dataset) {
+    if (mode === 'light' || mode === 'dark') root.dataset.theme = mode;
+    else delete root.dataset.theme;
+  }
+  if (mode === 'light' || mode === 'dark') localStorage.setItem('theme', mode);
+  else localStorage.removeItem('theme');
+  const btn = $('themeBtn');
+  btn.textContent = mode === 'light' ? '☀️' : mode === 'dark' ? '🌙' : '🌗';
+  btn.title = mode === 'light' ? 'Giao diện: SÁNG — bấm để chuyển sang tối'
+    : mode === 'dark' ? 'Giao diện: TỐI — bấm để theo hệ điều hành'
+    : 'Giao diện: theo hệ điều hành — bấm để chuyển sang sáng';
+  redrawCharts(); // canvas đọc màu từ CSS variables nên phải vẽ lại
+}
+
+function bindThemeBtn() {
+  let mode = 'auto';
+  try { mode = localStorage.getItem('theme') || 'auto'; } catch {}
+  applyTheme(mode);
+  $('themeBtn').addEventListener('click', () => {
+    mode = mode === 'auto' ? 'light' : mode === 'light' ? 'dark' : 'auto';
+    applyTheme(mode);
+  });
+}
+
 /* ================= Sự kiện & khởi động ================= */
 
 function bindEvents() {
@@ -1219,6 +1247,7 @@ function bindEvents() {
   bindApiDialog();
   bindTradeEvents();
   bindAlertBtn();
+  bindThemeBtn();
 }
 
 async function init() {
