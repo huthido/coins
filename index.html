@@ -103,7 +103,16 @@
 
   <main class="layout">
     <section class="panel table-panel">
-      <div class="table-scroll">
+      <div class="table-head">
+        <div class="seg view-seg" id="viewSeg">
+          <button data-view="table" class="active">☰ Bảng</button>
+          <button data-view="heat" title="Bản đồ nhiệt: ô to = khối lượng lớn, xanh tăng / đỏ giảm 24h">▦ Nhiệt</button>
+        </div>
+      </div>
+      <div class="heat-holder" id="heatHolder" hidden>
+        <canvas id="heatCanvas"></canvas>
+      </div>
+      <div class="table-scroll" id="tableScroll">
         <table id="coinTable">
           <thead>
             <tr id="headRow">
@@ -146,10 +155,20 @@
         </div>
 
         <div class="chart-wrap">
-          <div class="chart-legend" id="priceLegend"></div>
+          <div class="chart-toolbar">
+            <div class="chart-legend" id="priceLegend"></div>
+            <div class="seg chart-mode" id="chartModeSeg">
+              <button data-mode="candle" class="active">🕯 Nến</button>
+              <button data-mode="line">📈 Đường</button>
+            </div>
+          </div>
           <div class="chart-holder">
             <canvas id="priceChart"></canvas>
             <div class="tooltip" id="chartTip" hidden></div>
+          </div>
+          <div class="chart-title-row"><span class="chart-subtitle">Khối lượng</span></div>
+          <div class="chart-holder vol-holder">
+            <canvas id="volChart"></canvas>
           </div>
           <div class="chart-title-row"><span class="chart-subtitle">RSI 14</span></div>
           <div class="chart-holder rsi-holder">

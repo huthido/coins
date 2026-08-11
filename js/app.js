@@ -28,6 +28,8 @@ const state = {
   sortDir: 'desc',
   filter: 'all',
   assetType: 'all',
+  view: localStorage.getItem('view') === 'heat' ? 'heat' : 'table',      // bảng | bản đồ nhiệt
+  chartMode: localStorage.getItem('chartMode') === 'line' ? 'line' : 'candle', // nến | đường
   watch: new Set(JSON.parse(localStorage.getItem('watchlist') || '[]')),
   extras: new Set(),   // coin người dùng tự nhập để phân tích (giữ trong phiên làm việc)
   scanning: false,
@@ -221,7 +223,11 @@ async function analyzeSymbol(sym) {
   const dH = rawH ? parseKlines(rawH) : null;
   const ticker = state.tickers.find(t => t.symbol === sym) || { changePct: 0 };
   const sig = buildSignal(d, dH, ticker);
-  state.analysis.set(sym, { ...sig, closes: d.closes, times: d.times, klineIv: iv });
+  state.analysis.set(sym, {
+    ...sig,
+    closes: d.closes, opens: d.opens, highs: d.highs, lows: d.lows,
+    volumes: d.volumes, times: d.times, klineIv: iv,
+  });
 }
 
 async function runAnalysis() {
@@ -440,6 +446,7 @@ function renderTable() {
         ? 'Hiện chưa có coin nào khớp bộ lọc này. Đà thị trường thay đổi liên tục — hệ thống sẽ tự quét lại mỗi 5 phút.'
         : 'Không tìm thấy coin phù hợp.';
   $('coinRows').innerHTML = rows || `<tr><td colspan="8" class="loading-cell">${emptyMsg}</td></tr>`;
+  if (state.view === 'heat') drawHeatmap();
 }
 
 function updateSortIndicators() {
@@ -515,18 +522,42 @@ function renderDetail(sym) {
   loadCoinExtras(sym);
 
   renderLegend();
-  if (a) { drawPriceChart(a); drawRsiChart(a); }
+  if (a) { drawPriceChart(a); drawVolChart(a); drawRsiChart(a); }
   updateTradeUI();
   updateNewsCoinBtn();
   if (news.byCoin) renderNews();
 }
 
 function renderLegend() {
-  $('priceLegend').innerHTML = [
-    ['--series-1', 'Giá đóng nến'],
-    ['--series-2', 'EMA 20'],
-    ['--series-3', 'EMA 50'],
-  ].map(([v, label]) => `<span class="key"><span class="swatch" style="background:var(${v})"></span>${label}</span>`).join('');
+  const keys = state.chartMode === 'candle'
+    ? [['--good', 'Nến tăng'], ['--critical', 'Nến giảm'], ['--series-2', 'EMA 20'], ['--series-3', 'EMA 50']]
+    : [['--series-1', 'Giá đóng nến'], ['--series-2', 'EMA 20'], ['--series-3', 'EMA 50']];
+  $('priceLegend').innerHTML = keys
+    .map(([v, label]) => `<span class="key"><span class="swatch" style="background:var(${v})"></span>${label}</span>`).join('');
+}
+
+function drawVolChart(a) {
+  const canvas = $('volChart');
+  const { ctx, w, h } = setupCanvas(canvas);
+  ctx.clearRect(0, 0, w, h);
+  if (!a.volumes) return;
+  const n = a.volumes.length;
+  const X = (i) => PAD.l + (i / (n - 1)) * (w - PAD.l - PAD.r);
+  const maxV = Math.max(...a.volumes) || 1;
+  const bw = Math.max(1, ((w - PAD.l - PAD.r) / n) * 0.7);
+  const up = cssVar('--good'), down = cssVar('--critical');
+  for (let i = 0; i < n; i++) {
+    const rising = a.opens ? a.closes[i] >= a.opens[i] : (i > 0 ? a.closes[i] >= a.closes[i - 1] : true);
+    ctx.fillStyle = rising ? up : down;
+    ctx.globalAlpha = 0.75;
+    const bh = Math.max(1, (a.volumes[i] / maxV) * (h - 6));
+    ctx.fillRect(X(i) - bw / 2, h - 3 - bh, bw, bh);
+  }
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = cssVar('--ink-muted');
+  ctx.font = '10px system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(fmtCompactUsd(maxV), w - PAD.r + 6, 10);
 }
 
 /* ================= Vẽ biểu đồ (canvas) ================= */
@@ -548,9 +579,9 @@ function setupCanvas(canvas) {
 const PAD = { l: 8, r: 62, t: 10, b: 22 };
 let hoverIdx = null;
 
-function chartGeom(a, w, h) {
+function chartGeom(a, w, h, useHL = false) {
   const xs = a.times, n = xs.length;
-  const series = [a.closes, a.ema20, a.ema50];
+  const series = useHL && a.highs ? [a.highs, a.lows, a.ema20, a.ema50] : [a.closes, a.ema20, a.ema50];
   let min = Infinity, max = -Infinity;
   for (const s of series) for (const v of s) if (v != null) { if (v < min) min = v; if (v > max) max = v; }
   const pad = (max - min) * 0.05 || max * 0.01;
@@ -578,7 +609,8 @@ function drawPriceChart(a) {
   const canvas = $('priceChart');
   const { ctx, w, h } = setupCanvas(canvas);
   ctx.clearRect(0, 0, w, h);
-  const { X, Y, min, max, n } = chartGeom(a, w, h);
+  const candleMode = state.chartMode === 'candle' && a.opens;
+  const { X, Y, min, max, n } = chartGeom(a, w, h, candleMode);
 
   // lưới ngang + nhãn giá
   ctx.strokeStyle = cssVar('--grid');
@@ -608,9 +640,29 @@ function drawPriceChart(a) {
     ctx.fillText(fmtT(a.times[i]), X(i), h - 6);
   });
 
-  drawLine(ctx, a.ema50, X, Y, cssVar('--series-3'));
-  drawLine(ctx, a.ema20, X, Y, cssVar('--series-2'));
-  drawLine(ctx, a.closes, X, Y, cssVar('--series-1'));
+  if (candleMode) {
+    // Biểu đồ nến: xanh tăng / đỏ giảm, bấc = cao-thấp, thân = mở-đóng
+    const bw = Math.max(1, ((w - PAD.l - PAD.r) / n) * 0.7);
+    const up = cssVar('--good'), down = cssVar('--critical');
+    for (let i = 0; i < n; i++) {
+      const o = a.opens[i], c = a.closes[i], hi = a.highs[i], lo = a.lows[i];
+      if (![o, c, hi, lo].every(isFinite)) continue;
+      const col = c >= o ? up : down;
+      const x = X(i);
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, Y(hi)); ctx.lineTo(x, Y(lo)); ctx.stroke();
+      ctx.fillStyle = col;
+      const yTop = Y(Math.max(o, c));
+      ctx.fillRect(x - bw / 2, yTop, bw, Math.max(1, Y(Math.min(o, c)) - yTop));
+    }
+    drawLine(ctx, a.ema50, X, Y, cssVar('--series-3'));
+    drawLine(ctx, a.ema20, X, Y, cssVar('--series-2'));
+  } else {
+    drawLine(ctx, a.ema50, X, Y, cssVar('--series-3'));
+    drawLine(ctx, a.ema20, X, Y, cssVar('--series-2'));
+    drawLine(ctx, a.closes, X, Y, cssVar('--series-1'));
+  }
 
   // crosshair
   if (hoverIdx != null && hoverIdx >= 0 && hoverIdx < n) {
@@ -654,7 +706,91 @@ function drawRsiChart(a) {
 
 function redrawCharts() {
   const a = state.selected && state.analysis.get(state.selected);
-  if (a) { drawPriceChart(a); drawRsiChart(a); }
+  if (a) { drawPriceChart(a); drawVolChart(a); drawRsiChart(a); }
+  if (state.view === 'heat') drawHeatmap();
+}
+
+/* ==== Bản đồ nhiệt thị trường (treemap: diện tích = khối lượng, màu = %24h) ==== */
+
+let heatCells = [];
+
+function hexToRgb(hex) {
+  const m = hex.trim().match(/^#?([0-9a-f]{6})$/i);
+  if (!m) return { r: 128, g: 128, b: 128 };
+  const v = parseInt(m[1], 16);
+  return { r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255 };
+}
+
+// Chia đôi đệ quy theo trọng số — treemap gọn không cần thư viện
+function layoutTreemap(items, x, y, w, h, out) {
+  if (!items.length || w <= 0 || h <= 0) return;
+  if (items.length === 1) { out.push({ t: items[0], x, y, w, h }); return; }
+  const total = items.reduce((s, it) => s + it.weight, 0);
+  let acc = 0, i = 0;
+  while (i < items.length - 1 && acc + items[i].weight <= total / 2) { acc += items[i].weight; i++; }
+  if (i === 0) { acc = items[0].weight; i = 1; }
+  const frac = acc / total;
+  const first = items.slice(0, i), rest = items.slice(i);
+  if (w >= h) {
+    layoutTreemap(first, x, y, w * frac, h, out);
+    layoutTreemap(rest, x + w * frac, y, w * (1 - frac), h, out);
+  } else {
+    layoutTreemap(first, x, y, w, h * frac, out);
+    layoutTreemap(rest, x, y + h * frac, w, h * (1 - frac), out);
+  }
+}
+
+function drawHeatmap() {
+  const canvas = $('heatCanvas');
+  const { ctx, w, h } = setupCanvas(canvas);
+  ctx.clearRect(0, 0, w, h);
+  const list = visibleTickers().map(t => ({ ...t, weight: Math.max(t.quoteVolume, 1) }));
+  heatCells = [];
+  if (!list.length) {
+    ctx.fillStyle = cssVar('--ink-muted');
+    ctx.font = '13px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Không có coin nào khớp bộ lọc.', w / 2, h / 2);
+    return;
+  }
+  layoutTreemap(list, 0, 0, w, h, heatCells);
+  const up = hexToRgb(cssVar('--good'));
+  const down = hexToRgb(cssVar('--critical'));
+  const ink = cssVar('--ink-1');
+  for (const c of heatCells) {
+    const chg = c.t.changePct;
+    const col = chg >= 0 ? up : down;
+    const alpha = Math.min(1, 0.16 + (Math.min(Math.abs(chg), 10) / 10) * 0.7);
+    ctx.fillStyle = `rgba(${col.r},${col.g},${col.b},${alpha})`;
+    ctx.fillRect(c.x + 1, c.y + 1, c.w - 2, c.h - 2); // chừa 2px khe giữa các ô
+    if (c.w > 52 && c.h > 34) {
+      ctx.fillStyle = ink;
+      ctx.textAlign = 'center';
+      ctx.font = `600 ${Math.min(15, Math.max(10, c.w / 7))}px system-ui, sans-serif`;
+      ctx.fillText(c.t.base, c.x + c.w / 2, c.y + c.h / 2 - 3);
+      ctx.font = `${Math.min(12, Math.max(9, c.w / 9))}px system-ui, sans-serif`;
+      ctx.fillText(fmtPct(chg), c.x + c.w / 2, c.y + c.h / 2 + 12);
+    }
+    if (state.selected === c.t.symbol) {
+      ctx.strokeStyle = cssVar('--series-1');
+      ctx.lineWidth = 2;
+      ctx.strokeRect(c.x + 2, c.y + 2, c.w - 4, c.h - 4);
+    }
+  }
+}
+
+function heatCellAt(e) {
+  const rect = $('heatCanvas').getBoundingClientRect();
+  const x = e.clientX - rect.left, y = e.clientY - rect.top;
+  return heatCells.find(c => x >= c.x && x < c.x + c.w && y >= c.y && y < c.y + c.h);
+}
+
+function updateView() {
+  const heat = state.view === 'heat';
+  $('tableScroll').hidden = heat;
+  $('heatHolder').hidden = !heat;
+  document.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('active', b.dataset.view === state.view));
+  if (heat) drawHeatmap();
 }
 
 /* ==== Thanh kéo chia đôi màn hình (màn hình lớn) ==== */
@@ -724,9 +860,14 @@ function bindChartHover() {
       : d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
     const row = (color, label, val) =>
       `<div class="tt-row"><span class="k"><span class="swatch" style="display:inline-block;width:10px;height:2px;background:${cssVar(color)}"></span>${label}</span><span>${val}</span></div>`;
+    const candleRows = state.chartMode === 'candle' && a.opens
+      ? `<div class="tt-row"><span class="k">Mở / Đóng</span><span>${fmtUsd(a.opens[idx])} / ${fmtUsd(a.closes[idx])}</span></div>` +
+        `<div class="tt-row"><span class="k">Cao / Thấp</span><span>${fmtUsd(a.highs[idx])} / ${fmtUsd(a.lows[idx])}</span></div>` +
+        (a.volumes ? `<div class="tt-row"><span class="k">KL</span><span>${fmtCompactUsd(a.volumes[idx])}</span></div>` : '')
+      : row('--series-1', 'Giá', fmtUsd(a.closes[idx]));
     tip.innerHTML =
       `<div class="tt-time">${timeStr}</div>` +
-      row('--series-1', 'Giá', fmtUsd(a.closes[idx])) +
+      candleRows +
       (a.ema20[idx] != null ? row('--series-2', 'EMA20', fmtUsd(a.ema20[idx])) : '') +
       (a.ema50[idx] != null ? row('--series-3', 'EMA50', fmtUsd(a.ema50[idx])) : '') +
       `<div class="tt-row"><span class="k">VND</span><span>${fmtVnd(a.closes[idx])}</span></div>`;
@@ -1453,6 +1594,43 @@ function bindEvents() {
     state.assetType = e.target.value;
     renderTable();
   });
+
+  // Chuyển bảng ↔ bản đồ nhiệt
+  $('viewSeg').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-view]');
+    if (!btn || btn.dataset.view === state.view) return;
+    state.view = btn.dataset.view;
+    localStorage.setItem('view', state.view);
+    updateView();
+  });
+
+  // Bấm vào ô trên bản đồ nhiệt → chọn coin
+  $('heatCanvas').addEventListener('click', (e) => {
+    const cell = heatCellAt(e);
+    if (!cell) return;
+    state.selected = cell.t.symbol;
+    renderTable();
+    renderDetail(cell.t.symbol);
+  });
+  $('heatCanvas').addEventListener('mousemove', (e) => {
+    const cell = heatCellAt(e);
+    $('heatCanvas').title = cell
+      ? `${cell.t.base} · ${fmtUsd(cell.t.price)} USDT · ${fmtPct(cell.t.changePct)} (24h) · KL ${fmtCompactUsd(cell.t.quoteVolume)}`
+      : '';
+  });
+
+  // Chuyển kiểu biểu đồ giá: nến ↔ đường
+  $('chartModeSeg').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-mode]');
+    if (!btn || btn.dataset.mode === state.chartMode) return;
+    state.chartMode = btn.dataset.mode;
+    localStorage.setItem('chartMode', state.chartMode);
+    document.querySelectorAll('#chartModeSeg button').forEach(b => b.classList.toggle('active', b.dataset.mode === state.chartMode));
+    renderLegend();
+    redrawCharts();
+  });
+  document.querySelectorAll('#chartModeSeg button').forEach(b => b.classList.toggle('active', b.dataset.mode === state.chartMode));
+  updateView();
 
   // Bấm tiêu đề cột để sắp xếp (bấm lần nữa để đảo chiều)
   $('headRow').addEventListener('click', (e) => {

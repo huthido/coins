@@ -64,8 +64,12 @@ rồi mở `http://localhost:3000` (hoặc cổng tương ứng).
   (HTTPS), bấm 🔔 và cấp quyền thông báo — app tự đăng ký push với server. Bấm vào thông báo
   sẽ mở app đúng coin đó. Khóa VAPID tự sinh lần đầu, lưu trong `server/data/`
   (mount volume để giữ qua các lần redeploy — xem `docker-compose.yml`).
-- **Panel chi tiết**: biểu đồ giá + EMA20/50 (có tooltip theo con trỏ), biểu đồ RSI,
+- **Panel chi tiết**: biểu đồ giá dạng **nến (mặc định) hoặc đường** + EMA20/50
+  (tooltip OHLC theo con trỏ), **thanh khối lượng** màu theo chiều nến, biểu đồ RSI,
   danh sách lý do vì sao có đề xuất, và các chỉ số chính.
+- **Bản đồ nhiệt thị trường** (nút ▦ Nhiệt ở panel trái): treemap toàn thị trường —
+  diện tích ô = khối lượng 24h, màu xanh/đỏ đậm dần theo % tăng/giảm; bấm ô để mở
+  phân tích coin, tôn trọng mọi bộ lọc đang bật (loại tài sản, đà mới, tài sản đang có…).
 - **Phân tích coin bất kỳ**: gõ tên coin (VD: `PEPE`, `chz`, `NEARUSDT`) vào ô tìm kiếm
   rồi nhấn Enter hoặc bấm "🔎 Phân tích" — ứng dụng tra cứu cặp USDT tương ứng trên
   Binance, chạy toàn bộ chỉ báo và hiển thị đánh giá chi tiết, kể cả coin ngoài top 30.

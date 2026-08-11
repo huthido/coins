@@ -391,6 +391,7 @@ function parseKlines(raw) {
   return {
     times: raw.map(k => k[0]),
     // k[1..5]: open, high, low, close, volume · k[9]: taker buy base volume
+    opens: raw.map(k => parseFloat(k[1])),
     highs: raw.map(k => parseFloat(k[2])),
     lows: raw.map(k => parseFloat(k[3])),
     closes: raw.map(k => parseFloat(k[4])),
