@@ -70,7 +70,7 @@ body {
 /* ==== Top bar ==== */
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; padding: 7px 16px;
+  gap: 12px; padding: 1px;
   background: var(--surface-1);
   border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 20;
@@ -98,7 +98,7 @@ body {
 /* ==== Controls row ==== */
 .controls {
   display: flex; align-items: center; gap: 8px;
-  padding: 8px 16px; flex-wrap: wrap;
+  padding: 1px; flex-wrap: wrap;
 }
 #searchBox, #sortSel, #filterSel {
   font: inherit; color: var(--ink-1);
@@ -228,8 +228,8 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
 .momo-sm   { display: none; } /* chỉ hiện trên mobile khi cột Xu hướng bị ẩn */
 
 /* ==== Detail panel ==== */
-.detail-empty { padding: 40px 20px; text-align: center; color: var(--ink-muted); }
-.detail-body { padding: 12px; }
+.detail-empty { padding: 40px 1px; text-align: center; color: var(--ink-muted); }
+.detail-body { padding: 1px; }
 .detail-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
 .detail-head h2 { margin: 0 0 2px; font-size: 16px; }
 .detail-price { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
@@ -284,11 +284,11 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
 /* ==== Mobile ==== */
 @media (max-width: 720px) {
   body { font-size: 13px; }
-  .topbar { padding: 10px 12px; gap: 8px; }
+  .topbar { padding: 1px; gap: 8px; }
   .brand .sub { display: none; }
   .topbar-right { gap: 8px; }
   .clock { display: none; }
-  .controls { padding: 8px 12px; gap: 8px; }
+  .controls { padding: 1px; gap: 8px; }
   #searchBox { flex: 1 1 130px; width: auto; min-width: 0; }
   .seg { flex: 1 1 100%; }
   .seg button { flex: 1; padding: 8px 4px; }
@@ -302,13 +302,12 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
   #coinTable th:nth-child(7), #coinTable td:nth-child(7) { display: none; }
   .badge { font-size: 11px; padding: 2px 7px; }
   .momo-sm { display: inline-block; }
-  .detail-body { padding: 12px; }
   .detail-price .big { font-size: 20px; }
   .verdict { min-width: 90px; padding: 8px 12px; font-size: 13px; }
   .chart-holder canvas { height: 200px; }
   .rsi-holder canvas { height: 76px; }
   .ind-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
-  .disclaimer { margin: 0 12px 16px; }
+  .disclaimer { margin: 0 1px 1px; }
 }
 /* Vùng chạm tối thiểu cho ngôi sao trên thiết bị cảm ứng */
 @media (pointer: coarse) {
@@ -318,7 +317,7 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
 
 /* ==== Footer ==== */
 .disclaimer {
-  margin: 0 16px 12px; padding: 8px 12px;
+  margin: 0 1px 1px; padding: 1px 6px;
   border: 1px solid var(--border); border-radius: 9px;
   font-size: 11.5px; color: var(--ink-2); background: var(--surface-1);
 }
