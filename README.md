@@ -51,6 +51,12 @@ rồi mở `http://localhost:3000` (hoặc cổng tương ứng).
   app hiện toast ở góc màn hình (bấm vào để mở coin đó) và gửi thông báo hệ thống của
   trình duyệt nếu đã cấp quyền (hiện cả khi đang ở tab khác). Chống spam: không lặp lại
   cùng tín hiệu trong 60 phút; lần quét đầu và khi đổi khung thời gian chỉ tóm tắt.
+- **Web Push — thông báo cả khi ĐÓNG trình duyệt**: server tự quét top 30 coin mỗi 5 phút
+  (khung 1h, hợp lưu 4h, cùng engine `js/engine.js` với app nên tín hiệu khớp 100%) và đẩy
+  thông báo qua Web Push (VAPID) tới mọi thiết bị đã đăng ký. Cách bật: mở app đã deploy
+  (HTTPS), bấm 🔔 và cấp quyền thông báo — app tự đăng ký push với server. Bấm vào thông báo
+  sẽ mở app đúng coin đó. Khóa VAPID tự sinh lần đầu, lưu trong `server/data/`
+  (mount volume để giữ qua các lần redeploy — xem `docker-compose.yml`).
 - **Panel chi tiết**: biểu đồ giá + EMA20/50 (có tooltip theo con trỏ), biểu đồ RSI,
   danh sách lý do vì sao có đề xuất, và các chỉ số chính.
 - **Phân tích coin bất kỳ**: gõ tên coin (VD: `PEPE`, `chz`, `NEARUSDT`) vào ô tìm kiếm
@@ -107,17 +113,18 @@ Khi chạy qua **HTTPS hoặc localhost** (không hỗ trợ mở trực tiếp 
 
 ## Deploy lên Coolify
 
-Dự án đã kèm sẵn `Dockerfile` (nginx phục vụ file tĩnh, cổng 80):
+Dự án kèm sẵn `Dockerfile` (Node server: file tĩnh + proxy Binance + Web Push, cổng 80):
 
 1. Đẩy thư mục này lên một git repository (GitHub/GitLab/Gitea…).
 2. Trong Coolify: **+ New → Application → chọn repository**.
 3. **Build Pack**: chọn `Dockerfile` (Coolify tự phát hiện).
 4. **Ports Exposes**: `80`.
-5. Gán domain rồi bấm **Deploy** — Coolify tự cấp HTTPS qua Let's Encrypt.
+5. (Khuyến nghị) Thêm **Persistent Storage**: mount volume vào `/app/server/data`
+   để giữ khóa VAPID + danh sách đăng ký push qua các lần redeploy.
+6. Gán domain rồi bấm **Deploy** — Coolify tự cấp HTTPS qua Let's Encrypt.
 
-Không cần biến môi trường hay database — toàn bộ dữ liệu (giá Binance, tỷ giá VND)
-được trình duyệt của người dùng gọi trực tiếp; danh sách coin theo dõi đặc biệt
-lưu trong localStorage của từng người dùng.
+Không cần database; biến môi trường tùy chọn: `VAPID_SUBJECT` (mailto:email-của-bạn),
+`SCAN_MS` (chu kỳ quét push, mặc định 300000 = 5 phút).
 
 Chạy thử bằng Docker tại chỗ: `docker compose up --build` → `http://localhost:8080`.
 

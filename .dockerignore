@@ -1,5 +1,8 @@
 README.md
 docker-compose.yml
+nginx.conf
 .git
 .gitignore
 .dockerignore
+server/node_modules
+server/data

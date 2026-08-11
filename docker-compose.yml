@@ -4,3 +4,9 @@ services:
     ports:
       - "8080:80"
     restart: unless-stopped
+    volumes:
+      # Giữ khóa VAPID + danh sách đăng ký push qua các lần redeploy
+      - push-data:/app/server/data
+
+volumes:
+  push-data:
