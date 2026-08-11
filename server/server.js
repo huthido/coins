@@ -11,6 +11,7 @@ const webpush = require('web-push');
 const engine = require('../js/engine.js');
 
 const PORT = process.env.PORT || 80;
+const BOOT_VERSION = Date.now(); // gắn vào URL js/css để phá mọi tầng cache (CDN/trình duyệt) sau mỗi deploy
 const ROOT = path.join(__dirname, '..');
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -322,10 +323,20 @@ const server = http.createServer(async (req, res) => {
   fs.readFile(path.join(ROOT, fp), (err, data) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
     // HTML/JS/CSS: no-cache để deploy mới có hiệu lực ngay (max-age khiến
-    // trình duyệt giữ JS cũ 1 giờ, đè cả chiến lược network-first của SW).
+    // trình duyệt/CDN giữ JS cũ 1 giờ, đè cả chiến lược network-first của SW).
     // Chỉ icon/ảnh mới cache lâu.
     const ext = path.extname(fp);
     const longCache = ext === '.png' || ext === '.ico';
+    if (fp === '/index.html') {
+      // Gắn version vào URL tài nguyên: deploy mới = URL mới → Cloudflare/trình duyệt
+      // không thể trả bản cũ dù có cache kiểu gì
+      data = Buffer.from(
+        data.toString('utf8')
+          .replace('css/style.css', `css/style.css?v=${BOOT_VERSION}`)
+          .replace('js/engine.js', `js/engine.js?v=${BOOT_VERSION}`)
+          .replace('js/app.js', `js/app.js?v=${BOOT_VERSION}`)
+      );
+    }
     res.writeHead(200, {
       'Content-Type': MIME[ext] || 'application/octet-stream',
       'Cache-Control': longCache ? 'public, max-age=86400' : 'no-cache',
