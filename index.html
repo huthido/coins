@@ -28,6 +28,7 @@
       <div class="clock" id="lastUpdate">Đang tải…</div>
       <button class="btn" id="refreshBtn" title="Làm mới dữ liệu ngay">⟳ Làm mới</button>
       <button class="btn" id="apiBtn" title="Cấu hình API Binance để giao dịch">⚙️ API</button>
+      <button class="btn" id="alertBtn" title="Bật/tắt thông báo khi có tín hiệu MUA MẠNH / BÁN MẠNH">🔔</button>
     </div>
   </header>
 
@@ -155,6 +156,8 @@
       </div>
     </section>
   </main>
+
+  <div id="toasts" aria-live="polite"></div>
 
   <dialog id="apiDialog">
     <h3>Kết nối API Binance</h3>

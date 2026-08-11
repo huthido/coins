@@ -567,6 +567,7 @@ async function runAnalysis() {
   $('scanStatus').textContent = `Đã phân tích ${state.analysis.size} coin · khung ${state.interval}`;
   renderTable();
   if (state.selected) renderDetail(state.selected);
+  checkSignalAlerts();
 }
 
 /* ==== Thông tin thị trường chung ==== */
@@ -1049,6 +1050,108 @@ function bindChartHover() {
   });
 }
 
+/* ================= Cảnh báo tín hiệu MUA MẠNH / BÁN MẠNH ================= */
+
+const alerts = {
+  enabled: JSON.parse(localStorage.getItem('alertsOn') || 'true'),
+  prev: new Map(),      // symbol -> cls của lần quét trước
+  lastSent: new Map(),  // "symbol|cls" -> timestamp (chống spam)
+  firstScan: true,
+};
+const ALERT_COOLDOWN_MS = 60 * 60_000; // không lặp lại cùng tín hiệu trong 60 phút
+
+function showToast(title, body, kind, sym) {
+  const box = $('toasts');
+  if (!document.createElement || !box.appendChild) return; // môi trường test không có DOM thật
+  const el = document.createElement('div');
+  el.className = 'toast ' + (kind || '');
+  el.innerHTML = `<div><div class="t-title">${esc(title)}</div><div class="t-body">${esc(body)}</div></div>` +
+    `<button class="t-close" title="Đóng">✕</button>`;
+  el.addEventListener('click', (e) => {
+    if (e.target.closest('.t-close')) { el.remove(); return; }
+    if (sym) {
+      state.selected = sym;
+      renderTable();
+      renderDetail(sym);
+    }
+    el.remove();
+  });
+  box.appendChild(el);
+  setTimeout(() => el.remove(), 10_000);
+}
+
+function notifySignal(sym, a) {
+  const isBuy = a.cls.startsWith('buy');
+  const t = state.tickers.find(x => x.symbol === sym);
+  const title = (isBuy ? '🟢 MUA MẠNH: ' : '🔴 BÁN MẠNH: ') + sym.slice(0, -4);
+  const body = `Điểm ${a.score > 0 ? '+' : ''}${a.score} · ${t ? fmtUsd(t.price) + ' USDT' : ''} · khung ${a.klineIv || state.interval}`;
+  showToast(title, body, isBuy ? 'buy' : 'sell', sym);
+  if (alerts.enabled && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    try {
+      const n = new Notification(title, { body, icon: 'icons/icon-192.png', tag: 'coins-' + sym });
+      n.onclick = () => {
+        window.focus();
+        state.selected = sym;
+        renderTable();
+        renderDetail(sym);
+        n.close();
+      };
+    } catch { /* một số trình duyệt chặn Notification ngoài SW */ }
+  }
+}
+
+function checkSignalAlerts() {
+  const events = [];
+  let strongBuy = 0, strongSell = 0;
+  for (const [sym, a] of state.analysis) {
+    const prevCls = alerts.prev.get(sym);
+    alerts.prev.set(sym, a.cls);
+    if (!a.cls.includes('strong')) continue;
+    if (a.cls.startsWith('buy')) strongBuy++; else strongSell++;
+    if (prevCls === a.cls) continue; // vẫn như lần quét trước — không báo lại
+    const key = sym + '|' + a.cls;
+    if (Date.now() - (alerts.lastSent.get(key) || 0) < ALERT_COOLDOWN_MS) continue;
+    alerts.lastSent.set(key, Date.now());
+    events.push({ sym, a });
+  }
+  if (alerts.firstScan) {
+    // Lần quét đầu sau khi mở app: chỉ tóm tắt, tránh dội một loạt thông báo
+    alerts.firstScan = false;
+    if (strongBuy + strongSell > 0) {
+      showToast('Quét xong', `Hiện có ${strongBuy} tín hiệu MUA MẠNH, ${strongSell} BÁN MẠNH — lọc theo "Đề xuất" để xem.`, '', null);
+    }
+    return;
+  }
+  events.slice(0, 5).forEach(ev => notifySignal(ev.sym, ev.a));
+  if (events.length > 5) showToast('Tín hiệu mạnh', `…và ${events.length - 5} coin khác vừa có tín hiệu mạnh`, '', null);
+}
+
+function updateAlertBtn() {
+  const btn = $('alertBtn');
+  const sysOn = typeof Notification !== 'undefined' && Notification.permission === 'granted';
+  btn.textContent = alerts.enabled ? '🔔' : '🔕';
+  btn.className = 'btn' + (alerts.enabled ? '' : ' off');
+  btn.title = alerts.enabled
+    ? `Thông báo tín hiệu mạnh: BẬT${sysOn ? ' (kèm thông báo hệ thống)' : ' (chỉ trong app — bấm để xin quyền thông báo hệ thống)'}`
+    : 'Thông báo tín hiệu mạnh: TẮT — bấm để bật';
+}
+
+function bindAlertBtn() {
+  $('alertBtn').addEventListener('click', async () => {
+    if (!alerts.enabled) {
+      alerts.enabled = true;
+    } else if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      // đang bật nhưng chưa có quyền hệ thống → xin quyền thay vì tắt
+      try { await Notification.requestPermission(); } catch {}
+    } else {
+      alerts.enabled = false;
+    }
+    localStorage.setItem('alertsOn', JSON.stringify(alerts.enabled));
+    updateAlertBtn();
+  });
+  updateAlertBtn();
+}
+
 /* ================= Giao dịch Binance (API key phía client) ================= */
 /* Khóa API chỉ lưu localStorage của trình duyệt; lệnh ký HMAC-SHA256 bằng Web Crypto
  * và gửi thẳng tới Binance — không đi qua bất kỳ server trung gian nào. */
@@ -1382,6 +1485,8 @@ function bindEvents() {
     state.interval = btn.dataset.iv;
     document.querySelectorAll('#intervalSeg button').forEach(b => b.classList.toggle('active', b === btn));
     state.analysis.clear();
+    alerts.prev.clear();
+    alerts.firstScan = true; // đổi khung: chỉ tóm tắt thay vì dội thông báo
     renderTable();
     if (state.selected) renderDetail(state.selected);
     runAnalysis();
@@ -1400,6 +1505,7 @@ function bindEvents() {
   initSplitter();
   bindApiDialog();
   bindTradeEvents();
+  bindAlertBtn();
 }
 
 async function init() {

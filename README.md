@@ -47,6 +47,10 @@ rồi mở `http://localhost:3000` (hoặc cổng tương ứng).
   BTC Dominance + tổng vốn hóa (CoinGecko), độ rộng thị trường (số coin tăng 24h).
 - **Thông tin sâu từng coin**: áp lực mua từ sổ lệnh (tỷ trọng bid trong depth 100 mức),
   funding rate futures (cảnh báo long/short đông đúc).
+- **Thông báo tín hiệu mạnh** (nút 🔔): khi một coin *chuyển sang* MUA MẠNH / BÁN MẠNH,
+  app hiện toast ở góc màn hình (bấm vào để mở coin đó) và gửi thông báo hệ thống của
+  trình duyệt nếu đã cấp quyền (hiện cả khi đang ở tab khác). Chống spam: không lặp lại
+  cùng tín hiệu trong 60 phút; lần quét đầu và khi đổi khung thời gian chỉ tóm tắt.
 - **Panel chi tiết**: biểu đồ giá + EMA20/50 (có tooltip theo con trỏ), biểu đồ RSI,
   danh sách lý do vì sao có đề xuất, và các chỉ số chính.
 - **Phân tích coin bất kỳ**: gõ tên coin (VD: `PEPE`, `chz`, `NEARUSDT`) vào ô tìm kiếm
