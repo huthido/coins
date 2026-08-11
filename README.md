@@ -67,6 +67,9 @@ rồi mở `http://localhost:3000` (hoặc cổng tương ứng).
 - **Phân tích coin bất kỳ**: gõ tên coin (VD: `PEPE`, `chz`, `NEARUSDT`) vào ô tìm kiếm
   rồi nhấn Enter hoặc bấm "🔎 Phân tích" — ứng dụng tra cứu cặp USDT tương ứng trên
   Binance, chạy toàn bộ chỉ báo và hiển thị đánh giá chi tiết, kể cả coin ngoài top 30.
+- **Bộ lọc loại tài sản** (menu "Loại"): Layer 1, Layer 2, DeFi, Meme, AI & Dữ liệu,
+  Gaming/NFT, Thanh toán, Token sàn, Riêng tư, Hạ tầng — phân loại sẵn ~140 coin phổ biến,
+  loại tài sản hiển thị ngay dưới tên coin trong bảng.
 - **Bộ lọc đà mới** (menu "Lọc"):
   - *↗ Đà tăng mới*: coin có động lượng vừa đảo chiều tăng trong ~6 nến gần nhất
     (MACD chuyển dương hoặc golden cross, giá đang tăng, RSI < 70) — cơ hội mua sớm.

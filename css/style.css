@@ -100,7 +100,7 @@ body {
   display: flex; align-items: center; gap: 8px;
   padding: 1px; flex-wrap: wrap;
 }
-#searchBox, #sortSel, #filterSel {
+#searchBox, #sortSel, #filterSel, #assetSel {
   font: inherit; color: var(--ink-1);
   background: var(--surface-1);
   border: 1px solid var(--border); border-radius: 7px;
@@ -426,7 +426,7 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
   #searchBox { flex: 1 1 130px; width: auto; min-width: 0; }
   .seg { flex: 1 1 100%; }
   .seg button { flex: 1; padding: 8px 4px; }
-  #filterSel, #sortSel { flex: 1 1 45%; min-width: 0; }
+  #filterSel, #sortSel, #assetSel { flex: 1 1 45%; min-width: 0; }
   .status-pill { margin-left: 0; flex-basis: 100%; }
   .layout { grid-template-columns: 1fr; gap: 1px; padding: 0 1px 1px; }
   thead th, tbody td { padding: 1px; }

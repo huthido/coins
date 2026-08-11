@@ -27,6 +27,7 @@ const state = {
   sort: 'strength',   // strength | name | price | change | volume | rsi | score
   sortDir: 'desc',
   filter: 'all',
+  assetType: 'all',
   watch: new Set(JSON.parse(localStorage.getItem('watchlist') || '[]')),
   extras: new Set(),   // coin người dùng tự nhập để phân tích (giữ trong phiên làm việc)
   scanning: false,
@@ -45,6 +46,54 @@ function toggleWatch(sym) {
   renderTable();
   if (state.selected) renderDetail(state.selected);
 }
+
+/* ==== Phân loại tài sản ==== */
+
+const ASSET_LABELS = {
+  l1: 'Layer 1', l2: 'Layer 2', defi: 'DeFi', meme: 'Meme', ai: 'AI & Dữ liệu',
+  gaming: 'Gaming/NFT', payment: 'Thanh toán', exchange: 'Token sàn',
+  privacy: 'Riêng tư', infra: 'Hạ tầng', other: '',
+};
+
+const ASSET_TYPES = {
+  // Layer 1
+  BTC: 'l1', ETH: 'l1', SOL: 'l1', ADA: 'l1', AVAX: 'l1', DOT: 'l1', TRX: 'l1',
+  ATOM: 'l1', NEAR: 'l1', APT: 'l1', SUI: 'l1', TON: 'l1', ICP: 'l1', ALGO: 'l1',
+  XTZ: 'l1', EGLD: 'l1', S: 'l1', FTM: 'l1', SEI: 'l1', INJ: 'l1', KAS: 'l1',
+  HBAR: 'l1', ETC: 'l1', TIA: 'l1', DYM: 'l1', CELO: 'l1', KAVA: 'l1', ROSE: 'l1',
+  ONE: 'l1', WAVES: 'l1', TRUMP: 'meme', BERA: 'l1', MOVE: 'l1', MMT: 'l1',
+  // Layer 2
+  OP: 'l2', ARB: 'l2', MATIC: 'l2', POL: 'l2', STRK: 'l2', IMX: 'l2', MNT: 'l2',
+  ZK: 'l2', METIS: 'l2', BLAST: 'l2', SCROLL: 'l2', LINEA: 'l2', TAIKO: 'l2',
+  // DeFi
+  UNI: 'defi', AAVE: 'defi', MKR: 'defi', CRV: 'defi', LDO: 'defi', SNX: 'defi',
+  COMP: 'defi', SUSHI: 'defi', CAKE: 'defi', RUNE: 'defi', JUP: 'defi',
+  PENDLE: 'defi', ENA: 'defi', DYDX: 'defi', GMX: 'defi', RAY: 'defi',
+  '1INCH': 'defi', BAL: 'defi', YFI: 'defi', JTO: 'defi', ONDO: 'defi',
+  MORPHO: 'defi', AERO: 'defi', HYPE: 'defi', CRV3: 'defi', BICO: 'infra',
+  // Meme
+  DOGE: 'meme', SHIB: 'meme', PEPE: 'meme', WIF: 'meme', BONK: 'meme',
+  FLOKI: 'meme', MEME: 'meme', BOME: 'meme', MUBARAK: 'meme', BABY: 'meme',
+  NEIRO: 'meme', PNUT: 'meme', ACT: 'meme', DOGS: 'meme', TST: 'meme', PUMP: 'meme',
+  // AI & Dữ liệu
+  FET: 'ai', RENDER: 'ai', RNDR: 'ai', TAO: 'ai', WLD: 'ai', ARKM: 'ai',
+  NMR: 'ai', GRT: 'ai', OCEAN: 'ai', AI: 'ai', VIRTUAL: 'ai', AIXBT: 'ai',
+  // Gaming / NFT
+  SAND: 'gaming', MANA: 'gaming', AXS: 'gaming', GALA: 'gaming', ENJ: 'gaming',
+  APE: 'gaming', RON: 'gaming', PIXEL: 'gaming', BEAM: 'gaming', YGG: 'gaming',
+  // Thanh toán
+  XRP: 'payment', XLM: 'payment', LTC: 'payment', BCH: 'payment', DASH: 'payment',
+  // Token sàn
+  BNB: 'exchange', OKB: 'exchange', CRO: 'exchange', KCS: 'exchange', GT: 'exchange',
+  // Riêng tư
+  XMR: 'privacy', ZEC: 'privacy', SCRT: 'privacy',
+  // Hạ tầng / Lưu trữ
+  FIL: 'infra', AR: 'infra', STORJ: 'infra', LINK: 'infra', PYTH: 'infra',
+  ENS: 'infra', W: 'infra', AXL: 'infra', STX: 'infra', ICX: 'infra',
+};
+
+const assetType = (base) => ASSET_TYPES[base] || 'other';
+const assetLabel = (base) => ASSET_LABELS[assetType(base)];
 
 // Escape chuỗi từ nguồn ngoài trước khi chèn vào innerHTML (chống XSS)
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
@@ -301,6 +350,9 @@ function visibleTickers() {
     list = state.tickers.filter(t => state.watch.has(t.symbol))
       .filter(t => !state.search || t.base.includes(state.search.toUpperCase()));
   }
+  if (state.assetType !== 'all') {
+    list = list.filter(t => assetType(t.base) === state.assetType);
+  }
   const keyVal = (t) => {
     const a = state.analysis.get(t.symbol);
     switch (state.sort) {
@@ -342,7 +394,7 @@ function renderTable() {
     const sel = state.selected === t.symbol ? ' class="selected"' : '';
     const watched = state.watch.has(t.symbol);
     return `<tr data-sym="${esc(t.symbol)}"${sel}>
-      <td><div class="coin-cell-row"><span class="star${watched ? ' on' : ''}" data-star="${esc(t.symbol)}" title="${watched ? 'Bỏ theo dõi đặc biệt' : 'Theo dõi đặc biệt'}">${watched ? '★' : '☆'}</span><div class="coin-cell"><span class="coin-sym">${esc(t.base)}</span><span class="coin-pair">${esc(t.symbol)}</span></div></div></td>
+      <td><div class="coin-cell-row"><span class="star${watched ? ' on' : ''}" data-star="${esc(t.symbol)}" title="${watched ? 'Bỏ theo dõi đặc biệt' : 'Theo dõi đặc biệt'}">${watched ? '★' : '☆'}</span><div class="coin-cell"><span class="coin-sym">${esc(t.base)}</span><span class="coin-pair">${esc(t.symbol)}${assetLabel(t.base) ? ' · ' + assetLabel(t.base) : ''}</span></div></div></td>
       <td class="num">${fmtUsd(t.price)}</td>
       <td class="num vnd-cell">${fmtVnd(t.price)}</td>
       <td class="num ${chgCls}">${fmtPct(t.changePct)}</td>
@@ -355,9 +407,11 @@ function renderTable() {
   updateSortIndicators();
   const emptyMsg = state.filter === 'watch'
     ? 'Chưa có coin nào được đánh dấu ★. Bấm vào dấu ☆ cạnh tên coin để theo dõi đặc biệt.'
-    : state.filter !== 'all' && !state.scanning
-      ? 'Hiện chưa có coin nào khớp bộ lọc này. Đà thị trường thay đổi liên tục — hệ thống sẽ tự quét lại mỗi 5 phút.'
-      : 'Không tìm thấy coin phù hợp.';
+    : state.assetType !== 'all' && state.filter === 'all' && !state.search
+      ? 'Không có coin loại này trong danh sách đang theo dõi (top khối lượng + coin đánh dấu ★). Dùng ô tìm kiếm để phân tích coin cụ thể.'
+      : state.filter !== 'all' && !state.scanning
+        ? 'Hiện chưa có coin nào khớp bộ lọc này. Đà thị trường thay đổi liên tục — hệ thống sẽ tự quét lại mỗi 5 phút.'
+        : 'Không tìm thấy coin phù hợp.';
   $('coinRows').innerHTML = rows || `<tr><td colspan="8" class="loading-cell">${emptyMsg}</td></tr>`;
 }
 
@@ -1306,6 +1360,11 @@ function bindEvents() {
 
   $('filterSel').addEventListener('change', (e) => {
     state.filter = e.target.value;
+    renderTable();
+  });
+
+  $('assetSel').addEventListener('change', (e) => {
+    state.assetType = e.target.value;
     renderTable();
   });
 
