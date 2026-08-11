@@ -791,22 +791,57 @@ async function tryEnablePush() {
   return r;
 }
 
+async function hasPushSub() {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    return !!(await reg.pushManager.getSubscription());
+  } catch { return false; }
+}
+
+// Xin quyền thông báo với phản hồi rõ ràng ở mọi tình huống
+async function requestPermissionFlow() {
+  showToast('Đang xin quyền thông báo…',
+    'Nếu không thấy hộp thoại hiện ra, hãy bấm biểu tượng 🔔/🔒 nhỏ CẠNH THANH ĐỊA CHỈ của trình duyệt rồi chọn "Cho phép".', '', null);
+  let p = 'timeout';
+  try {
+    p = await Promise.race([
+      Notification.requestPermission(),
+      new Promise(r => setTimeout(() => r('timeout'), 12_000)),
+    ]);
+  } catch { p = 'error'; }
+  if (p === 'granted') {
+    showToast('✅ Đã cấp quyền thông báo', 'Đang đăng ký Web Push với server…', 'buy', null);
+    tryEnablePush();
+  } else if (p === 'denied') {
+    showToast('❌ Quyền thông báo bị CHẶN', 'Bấm biểu tượng 🔒 cạnh thanh địa chỉ → Thông báo (Notifications) → Cho phép (Allow), rồi bấm 🔔 lại.', 'sell', null);
+  } else if (p === 'timeout') {
+    showToast('Trình duyệt đang ẩn hộp xin quyền', 'Tìm biểu tượng chuông nhỏ 🔔 trong thanh địa chỉ (bên phải) và bấm vào đó để cho phép — Chrome hay ẩn hộp thoại kiểu này.', '', null);
+  }
+  updateAlertBtn();
+}
+
 function bindAlertBtn() {
   $('alertBtn').addEventListener('click', async () => {
+    const perm = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported';
     if (!alerts.enabled) {
       alerts.enabled = true;
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') tryEnablePush();
-    } else if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-      // đang bật nhưng chưa có quyền hệ thống → xin quyền thay vì tắt
-      try {
-        const p = await Notification.requestPermission();
-        if (p === 'granted') tryEnablePush();
-      } catch {}
+      localStorage.setItem('alertsOn', 'true');
+      showToast('🔔 Cảnh báo trong app: BẬT', 'Toast sẽ hiện khi có coin chuyển sang MUA MẠNH / BÁN MẠNH.', '', null);
+      if (perm === 'granted') tryEnablePush();
+      else if (perm === 'default') await requestPermissionFlow();
+    } else if (perm === 'default') {
+      await requestPermissionFlow();
+    } else if (perm === 'granted' && !(await hasPushSub())) {
+      showToast('Đang đăng ký Web Push…', 'Quyền đã có, đang kết nối với server push.', '', null);
+      tryEnablePush();
     } else {
       alerts.enabled = false;
+      localStorage.setItem('alertsOn', 'false');
       teardownPush();
+      showToast('🔕 Đã tắt cảnh báo', perm === 'denied'
+        ? 'Lưu ý: quyền thông báo hệ thống đang bị CHẶN cho trang này — bấm 🔒 cạnh thanh địa chỉ nếu muốn mở lại.'
+        : 'Bấm 🔔 để bật lại.', '', null);
     }
-    localStorage.setItem('alertsOn', JSON.stringify(alerts.enabled));
     updateAlertBtn();
   });
   updateAlertBtn();
