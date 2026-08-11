@@ -436,6 +436,8 @@ function renderDetail(sym) {
   renderLegend();
   if (a) { drawPriceChart(a); drawRsiChart(a); }
   updateTradeUI();
+  updateNewsCoinBtn();
+  if (news.byCoin) renderNews();
 }
 
 function renderLegend() {
@@ -1136,6 +1138,103 @@ function bindTradeEvents() {
   $('tradeSubmit').addEventListener('click', submitTrade);
 }
 
+/* ==== Tin tức thị trường (server thu thập RSS, client tìm/lọc) ==== */
+
+const news = { items: [], updatedAt: 0, available: false, q: '', lang: '', byCoin: false };
+
+// Tên đầy đủ của các coin lớn để lọc tin chính xác hơn
+const COIN_NAMES = {
+  BTC: ['bitcoin'], ETH: ['ethereum'], BNB: ['bnb', 'binance coin'], SOL: ['solana'],
+  XRP: ['xrp', 'ripple'], DOGE: ['dogecoin'], ADA: ['cardano'], TRX: ['tron'],
+  LINK: ['chainlink'], DOT: ['polkadot'], AVAX: ['avalanche'], LTC: ['litecoin'],
+  SHIB: ['shiba inu'], PEPE: ['pepe'], NEAR: ['near protocol'], ICP: ['internet computer'],
+  ZEC: ['zcash'], SUI: ['sui'], UNI: ['uniswap'], ATOM: ['cosmos'], FIL: ['filecoin'],
+  APT: ['aptos'], ARB: ['arbitrum'], OP: ['optimism'], TON: ['toncoin'],
+};
+
+function newsTimeAgo(t) {
+  if (!t) return '';
+  const s = (Date.now() - t) / 1000;
+  if (s < 3600) return Math.max(1, Math.floor(s / 60)) + ' phút trước';
+  if (s < 86400) return Math.floor(s / 3600) + ' giờ trước';
+  if (s < 172800) return 'hôm qua';
+  return new Date(t).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+}
+
+async function loadNews() {
+  try {
+    const res = await fetch('news?limit=150');
+    if (!res.ok) throw new Error('no news endpoint');
+    const d = await res.json();
+    news.items = d.items || [];
+    news.updatedAt = d.updatedAt || 0;
+    news.available = true;
+    $('newsBox').hidden = false;
+    renderNews();
+  } catch {
+    // Hosting tĩnh / bản cũ không có server tin tức — ẩn khu tin
+    news.available = false;
+    $('newsBox').hidden = true;
+  }
+}
+
+function coinNewsTerms() {
+  if (!state.selected) return [];
+  const base = state.selected.slice(0, -4);
+  return [base.toLowerCase(), ...(COIN_NAMES[base] || [])];
+}
+
+function renderNews() {
+  if (!news.available) return;
+  let list = news.items;
+  if (news.lang) list = list.filter(n => n.lang === news.lang);
+  if (news.byCoin) {
+    const terms = coinNewsTerms();
+    if (terms.length) list = list.filter(n => {
+      const hay = (n.title + ' ' + n.desc).toLowerCase();
+      return terms.some(t => hay.includes(t));
+    });
+  }
+  if (news.q) {
+    const q = news.q.toLowerCase();
+    list = list.filter(n => (n.title + ' ' + n.desc).toLowerCase().includes(q));
+  }
+  $('newsUpd').textContent = news.updatedAt ? 'cập nhật ' + newsTimeAgo(news.updatedAt) : '';
+  $('newsList').innerHTML = list.slice(0, 40).map(n =>
+    `<li><a href="${esc(n.link)}" target="_blank" rel="noopener noreferrer" title="${esc(n.desc)}">${esc(n.title)}</a>` +
+    `<div class="news-meta">${esc(n.source)} · ${newsTimeAgo(n.time)}</div></li>`
+  ).join('') || '<li class="news-empty">Không có tin nào khớp bộ lọc.</li>';
+}
+
+function updateNewsCoinBtn() {
+  const btn = $('newsCoinBtn');
+  if (!news.available || !state.selected) {
+    btn.hidden = true;
+    if (news.byCoin) { news.byCoin = false; renderNews(); }
+    return;
+  }
+  const base = state.selected.slice(0, -4);
+  btn.hidden = false;
+  btn.textContent = (news.byCoin ? '✓ ' : '') + 'Tin về ' + base;
+  btn.className = 'btn btn-sm' + (news.byCoin ? ' on' : '');
+}
+
+function bindNews() {
+  $('newsSearch').addEventListener('input', (e) => {
+    news.q = e.target.value.trim();
+    renderNews();
+  });
+  $('newsLang').addEventListener('change', (e) => {
+    news.lang = e.target.value;
+    renderNews();
+  });
+  $('newsCoinBtn').addEventListener('click', () => {
+    news.byCoin = !news.byCoin;
+    updateNewsCoinBtn();
+    renderNews();
+  });
+}
+
 /* ==== Chuyển theme sáng / tối / tự động ==== */
 
 function applyTheme(mode) {
@@ -1248,6 +1347,7 @@ function bindEvents() {
   bindTradeEvents();
   bindAlertBtn();
   bindThemeBtn();
+  bindNews();
 }
 
 async function init() {
@@ -1266,6 +1366,7 @@ async function init() {
   renderTable();
   updateBreadth();
   loadMarketInfo();
+  loadNews();
   runAnalysis();
 
   setInterval(async () => {
@@ -1279,6 +1380,7 @@ async function init() {
 
   setInterval(() => runAnalysis(), ANALYSIS_REFRESH_MS);
   setInterval(() => loadMarketInfo(), 5 * 60_000);
+  setInterval(() => loadNews(), 10 * 60_000);
   setInterval(() => loadRate(), 60 * 60_000);
 }
 

@@ -329,6 +329,36 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
 .trade-result.err { color: var(--critical); }
 .trade-hint { margin-top: 12px; font-size: 12px; color: var(--ink-muted); }
 
+/* ==== Tin tức thị trường ==== */
+.news-box {
+  margin: 10px 6px 6px; padding: 8px;
+  border-top: 1px solid var(--grid);
+}
+.news-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.news-head h3 { margin: 0 0 6px; font-size: 13px; }
+.news-upd { font-size: 10.5px; color: var(--ink-muted); }
+.news-controls { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+#newsSearch {
+  flex: 1 1 140px; min-width: 0;
+  font: inherit; color: var(--ink-1); background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 7px; padding: 4px 8px;
+}
+#newsLang {
+  font: inherit; color: var(--ink-1); background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 7px; padding: 4px 6px;
+}
+#newsCoinBtn.on { color: var(--series-1); border-color: var(--series-1); }
+.news-list { list-style: none; margin: 0; padding: 0; }
+.news-list li { padding: 6px 2px; border-bottom: 1px solid var(--grid); }
+.news-list li:last-child { border-bottom: none; }
+.news-list a {
+  color: var(--ink-1); text-decoration: none; font-size: 12.5px; line-height: 1.35;
+  display: block;
+}
+.news-list a:hover { color: var(--series-1); text-decoration: underline; }
+.news-meta { font-size: 10.5px; color: var(--ink-muted); margin-top: 2px; }
+.news-empty { color: var(--ink-muted); font-size: 12px; padding: 10px 2px; }
+
 /* ==== Toast thông báo tín hiệu ==== */
 #toasts {
   position: fixed; right: 10px; bottom: 10px; z-index: 100;

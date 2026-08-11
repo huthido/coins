@@ -125,6 +125,74 @@ async function scan() {
   }
 }
 
+/* ==== Thu thập tin tức (RSS) ==== */
+
+const NEWS_FEEDS = [
+  { source: 'CoinDesk', lang: 'en', url: 'https://www.coindesk.com/arc/outboundfeeds/rss/' },
+  { source: 'Cointelegraph', lang: 'en', url: 'https://cointelegraph.com/rss' },
+  { source: 'Bitcoin Magazine', lang: 'en', url: 'https://bitcoinmagazine.com/feed' },
+  { source: 'Coin68', lang: 'vi', url: 'https://coin68.com/rss/tin-moi-nhat.rss' },
+];
+const NEWS_REFRESH_MS = 10 * 60_000;
+const NEWS_MAX_PER_FEED = 40;
+let newsCache = [];        // [{title, link, source, lang, time, desc}]
+let newsUpdatedAt = 0;
+
+function stripTags(s) {
+  return s.replace(/<!\[CDATA\[|\]\]>/g, '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&#0?39;|&apos;/g, "'").replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_, c) => String.fromCharCode(c))
+    .replace(/\s+/g, ' ').trim();
+}
+
+function pickTag(block, tag) {
+  const m = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'));
+  return m ? m[1].trim() : '';
+}
+
+// Parser RSS 2.0 / Atom tối giản, không cần thư viện ngoài
+function parseFeed(xml, meta) {
+  const items = [];
+  const blocks = xml.match(/<item[\s>][\s\S]*?<\/item>/gi) || xml.match(/<entry[\s>][\s\S]*?<\/entry>/gi) || [];
+  for (const b of blocks.slice(0, NEWS_MAX_PER_FEED)) {
+    const title = stripTags(pickTag(b, 'title'));
+    let link = stripTags(pickTag(b, 'link'));
+    if (!link) { const m = b.match(/<link[^>]*href="([^"]+)"/i); link = m ? m[1] : ''; }
+    const dateStr = pickTag(b, 'pubDate') || pickTag(b, 'published') || pickTag(b, 'updated') || pickTag(b, 'dc:date');
+    const time = Date.parse(stripTags(dateStr)) || 0;
+    const desc = stripTags(pickTag(b, 'description') || pickTag(b, 'summary')).slice(0, 260);
+    if (title && link) items.push({ title, link, source: meta.source, lang: meta.lang, time, desc });
+  }
+  return items;
+}
+
+async function refreshNews() {
+  const all = [];
+  await Promise.all(NEWS_FEEDS.map(async (f) => {
+    try {
+      const res = await fetch(f.url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CoinsApp/1.0)', 'Accept': 'application/rss+xml, application/xml, text/xml, */*' },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      all.push(...parseFeed(await res.text(), f));
+    } catch (e) {
+      console.error(`RSS ${f.source} lỗi:`, e.message);
+    }
+  }));
+  if (all.length) {
+    // khử trùng lặp theo link, mới nhất trước
+    const seen = new Set();
+    newsCache = all
+      .sort((a, b) => b.time - a.time)
+      .filter(n => !seen.has(n.link) && seen.add(n.link));
+    newsUpdatedAt = Date.now();
+    console.log(`Tin tức: ${newsCache.length} bài từ ${NEWS_FEEDS.length} nguồn`);
+  }
+}
+
 /* ==== HTTP server ==== */
 
 function readBody(req) {
@@ -188,6 +256,25 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify({ ok: true }));
     return;
   }
+  // --- Tin tức thị trường ---
+  if (p === '/news') {
+    const params = new URLSearchParams(qs || '');
+    const q = (params.get('q') || '').toLowerCase();
+    const lang = params.get('lang') || '';
+    const limit = Math.min(parseInt(params.get('limit'), 10) || 60, 200);
+    let list = newsCache;
+    if (lang) list = list.filter(n => n.lang === lang);
+    if (q) {
+      const terms = q.split(/[,\s]+/).filter(Boolean);
+      list = list.filter(n => {
+        const hay = (n.title + ' ' + n.desc).toLowerCase();
+        return terms.some(t => hay.includes(t));
+      });
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' });
+    res.end(JSON.stringify({ updatedAt: newsUpdatedAt, total: list.length, items: list.slice(0, limit) }));
+    return;
+  }
   if (p === '/push/status') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ subs: subs.length }));
@@ -232,4 +319,6 @@ server.listen(PORT, () => {
   console.log(`Coins server chạy tại cổng ${PORT} · ${subs.length} đăng ký push · quét mỗi ${SCAN_MS / 1000}s`);
   scan();
   setInterval(scan, SCAN_MS);
+  refreshNews();
+  setInterval(refreshNews, NEWS_REFRESH_MS);
 });

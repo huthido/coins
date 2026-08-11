@@ -47,6 +47,11 @@ rồi mở `http://localhost:3000` (hoặc cổng tương ứng).
   BTC Dominance + tổng vốn hóa (CoinGecko), độ rộng thị trường (số coin tăng 24h).
 - **Thông tin sâu từng coin**: áp lực mua từ sổ lệnh (tỷ trọng bid trong depth 100 mức),
   funding rate futures (cảnh báo long/short đông đúc).
+- **Tin tức thị trường** (panel phải, dưới phần phân tích): server tự thu thập RSS mỗi
+  10 phút từ CoinDesk, Cointelegraph, Bitcoin Magazine và Coin68 (tiếng Việt), khử trùng
+  lặp và phục vụ qua `/news`. Trên giao diện có ô **tìm kiếm tin**, lọc theo ngôn ngữ
+  (Việt/Anh), và nút **"Tin về <coin>"** lọc tin nhắc đến coin đang chọn (nhận cả tên
+  đầy đủ — BTC/bitcoin, SOL/solana…). Cần bản deploy có server Node; hosting tĩnh sẽ tự ẩn khu tin.
 - **Thông báo tín hiệu mạnh** (nút 🔔): khi một coin *chuyển sang* MUA MẠNH / BÁN MẠNH,
   app hiện toast ở góc màn hình (bấm vào để mở coin đó) và gửi thông báo hệ thống của
   trình duyệt nếu đã cấp quyền (hiện cả khi đang ở tab khác). Chống spam: không lặp lại

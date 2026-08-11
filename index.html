@@ -164,6 +164,23 @@
           <div class="ind-grid" id="dExtras"></div>
         </div>
       </div>
+
+      <div class="news-box" id="newsBox" hidden>
+        <div class="news-head">
+          <h3>📰 Tin tức thị trường</h3>
+          <span class="news-upd" id="newsUpd"></span>
+        </div>
+        <div class="news-controls">
+          <input type="search" id="newsSearch" placeholder="Tìm tin (bitcoin, etf, hack…)" autocomplete="off">
+          <select id="newsLang">
+            <option value="">Mọi nguồn</option>
+            <option value="vi">Tiếng Việt</option>
+            <option value="en">Tiếng Anh</option>
+          </select>
+          <button class="btn btn-sm" id="newsCoinBtn" hidden></button>
+        </div>
+        <ul class="news-list" id="newsList"></ul>
+      </div>
     </section>
   </main>
 
