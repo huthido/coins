@@ -19,7 +19,7 @@ const EXCLUDE_SUFFIX = /(UP|DOWN|BULL|BEAR)$/;
 const state = {
   rate: FALLBACK_VND,
   rateLive: false,
-  interval: '1h',
+  interval: '1d',
   tickers: [],          // [{symbol, base, price, changePct, quoteVolume}]
   analysis: new Map(),  // symbol -> {score, verdict, reasons, rsi, ema20, ema50, macd, closes, times, klineIv}
   selected: null,
@@ -193,11 +193,29 @@ async function loadTickers() {
   $('lastUpdate').textContent = 'Cập nhật ' + new Date().toLocaleTimeString('vi-VN');
 }
 
+// Cấu hình từng khung: nến dùng để phân tích + số nến tải về
+// '1y' = nến ngày trải 365 nến (Binance không có nến 1 năm)
+const IV_CONF = {
+  '15m': { iv: '15m', limit: 200 },
+  '1h':  { iv: '1h',  limit: 200 },
+  '4h':  { iv: '4h',  limit: 200 },
+  '1d':  { iv: '1d',  limit: 200 },
+  '1w':  { iv: '1w',  limit: 200 },
+  '1M':  { iv: '1M',  limit: 120 },
+  '1y':  { iv: '1d',  limit: 365 },
+};
+const IV_LABEL = {
+  '15m': '15 phút', '1h': '1 giờ', '4h': '4 giờ', '1d': '1 ngày',
+  '1w': '1 tuần', '1M': '1 tháng', '1y': '1 năm (nến ngày)',
+};
+
 async function analyzeSymbol(sym) {
   const iv = state.interval;
+  const conf = IV_CONF[iv] || { iv, limit: 200 };
+  const hIv = HTF_MAP[conf.iv]; // nến 1 tháng không có khung lớn hơn
   const [raw, rawH] = await Promise.all([
-    fetchJson(`${BINANCE}/klines?symbol=${sym}&interval=${iv}&limit=${KLINE_LIMIT}`),
-    fetchJson(`${BINANCE}/klines?symbol=${sym}&interval=${HTF_MAP[iv] || '1d'}&limit=120`).catch(() => null),
+    fetchJson(`${BINANCE}/klines?symbol=${sym}&interval=${conf.iv}&limit=${conf.limit}`),
+    hIv ? fetchJson(`${BINANCE}/klines?symbol=${sym}&interval=${hIv}&limit=120`).catch(() => null) : Promise.resolve(null),
   ]);
   const d = parseKlines(raw);
   const dH = rawH ? parseKlines(rawH) : null;
@@ -222,7 +240,7 @@ async function runAnalysis() {
   });
   await Promise.all(workers);
   state.scanning = false;
-  $('scanStatus').textContent = `Đã phân tích ${state.analysis.size} coin · khung ${state.interval}`;
+  $('scanStatus').textContent = `Đã phân tích ${state.analysis.size} coin · khung ${IV_LABEL[state.interval] || state.interval}`;
   renderTable();
   if (state.selected) renderDetail(state.selected);
   checkSignalAlerts();
@@ -316,7 +334,7 @@ async function lookupCoin(qRaw) {
   renderDetail(sym); // hiện giá ngay, chỉ báo hiện "đang phân tích"
   try {
     await analyzeSymbol(sym);
-    $('scanStatus').textContent = `Đã phân tích ${sym} · khung ${state.interval}`;
+    $('scanStatus').textContent = `Đã phân tích ${sym} · khung ${IV_LABEL[state.interval] || state.interval}`;
   } catch {
     $('scanStatus').textContent = `Không tải được dữ liệu nến của ${sym}.`;
   }
@@ -456,7 +474,7 @@ function renderDetail(sym) {
   if (a) {
     const kind = a.cls.startsWith('buy') ? 'buy' : a.cls.startsWith('sell') ? 'sell' : 'hold';
     v.className = 'verdict verdict-' + kind;
-    v.innerHTML = `${a.verdict}<small>điểm tín hiệu: ${a.score > 0 ? '+' : ''}${a.score} · khung ${a.klineIv}</small>`;
+    v.innerHTML = `${a.verdict}<small>điểm tín hiệu: ${a.score > 0 ? '+' : ''}${a.score} · khung ${IV_LABEL[a.klineIv] || a.klineIv}</small>`;
   } else {
     v.className = 'verdict verdict-hold';
     v.textContent = 'Đang phân tích…';
@@ -578,10 +596,11 @@ function drawPriceChart(a) {
 
   // nhãn thời gian (đầu / giữa / cuối)
   ctx.textAlign = 'center';
+  const longFrame = ['1d', '1w', '1M', '1y'].includes(a.klineIv);
   const fmtT = (ms) => {
     const d = new Date(ms);
-    return a.klineIv === '1d'
-      ? d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+    return longFrame
+      ? d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: a.klineIv === '1d' ? undefined : '2-digit' })
       : d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   };
   [0, Math.floor(n / 2), n - 1].forEach((i, k) => {
@@ -700,7 +719,9 @@ function bindChartHover() {
       drawPriceChart(a);
     }
     const d = new Date(a.times[idx]);
-    const timeStr = d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const timeStr = ['1d', '1w', '1M', '1y'].includes(a.klineIv)
+      ? d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      : d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
     const row = (color, label, val) =>
       `<div class="tt-row"><span class="k"><span class="swatch" style="display:inline-block;width:10px;height:2px;background:${cssVar(color)}"></span>${label}</span><span>${val}</span></div>`;
     tip.innerHTML =
@@ -758,7 +779,7 @@ function notifySignal(sym, a) {
   const isBuy = a.cls.startsWith('buy');
   const t = state.tickers.find(x => x.symbol === sym);
   const title = (isBuy ? '🟢 MUA MẠNH: ' : '🔴 BÁN MẠNH: ') + sym.slice(0, -4);
-  const body = `Điểm ${a.score > 0 ? '+' : ''}${a.score} · ${t ? fmtUsd(t.price) + ' USDT' : ''} · khung ${a.klineIv || state.interval}`;
+  const body = `Điểm ${a.score > 0 ? '+' : ''}${a.score} · ${t ? fmtUsd(t.price) + ' USDT' : ''} · khung ${IV_LABEL[a.klineIv || state.interval] || a.klineIv}`;
   showToast(title, body, isBuy ? 'buy' : 'sell', sym);
   if (alerts.enabled && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     try {

@@ -385,7 +385,7 @@ function buildSignal(d, dH, ticker) {
 }
 
 
-const HTF_MAP = { '15m': '1h', '1h': '4h', '4h': '1d', '1d': '1w' };
+const HTF_MAP = { '15m': '1h', '1h': '4h', '4h': '1d', '1d': '1w', '1w': '1M' };
 
 function parseKlines(raw) {
   return {

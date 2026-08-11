@@ -26,7 +26,9 @@ rồi mở `http://localhost:3000` (hoặc cổng tương ứng).
   % thay đổi 24h, khối lượng, RSI, xu hướng và đề xuất. Tự làm mới mỗi 30 giây.
 - **Tỷ giá USD→VND** lấy tự động từ open.er-api.com (cache 1 giờ; nếu mạng lỗi
   dùng tỷ giá ước tính 26.300).
-- **Khung phân tích**: 15 phút / 1 giờ / 4 giờ / 1 ngày.
+- **Khung phân tích**: 15 phút / 1 giờ / 4 giờ / **1 ngày (mặc định)** / 1 tuần / 1 tháng /
+  1 năm (nến ngày trải 365 ngày — Binance không có nến 1 năm). Hợp lưu đa khung tự chọn
+  khung lớn hơn tương ứng (1d→1w, 1w→1M; nến tháng không có khung lớn hơn).
 - **Đề xuất mua bán** — bộ chấm điểm hợp lưu v2 (phân tích lại mỗi 5 phút), kết hợp
   các thuật toán có bằng chứng hiệu quả với crypto:
   - **SuperTrend (10, 3)** — chỉ báo bám xu hướng theo ATR; đảo chiều được chấm điểm cao
