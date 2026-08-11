@@ -120,7 +120,7 @@ body {
 .layout {
   --split: 55%;
   display: grid; grid-template-columns: minmax(420px, var(--split)) 10px minmax(360px, 1fr);
-  gap: 8px; padding: 0 8px 8px; align-items: start;
+  gap: 1px; padding: 0 1px 1px; align-items: start;
 }
 
 /* Màn hình lớn: trang không cuộn — mỗi cột có thanh cuộn riêng */
@@ -294,7 +294,7 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
   .seg button { flex: 1; padding: 8px 4px; }
   #filterSel, #sortSel { flex: 1 1 45%; min-width: 0; }
   .status-pill { margin-left: 0; flex-basis: 100%; }
-  .layout { grid-template-columns: 1fr; gap: 12px; padding: 0 8px 8px; }
+  .layout { grid-template-columns: 1fr; gap: 1px; padding: 0 1px 1px; }
   thead th, tbody td { padding: 8px 7px; }
   /* Ẩn cột phụ trên màn hình hẹp: KL 24h (5), RSI (6), Xu hướng (7) */
   #coinTable th:nth-child(5), #coinTable td:nth-child(5),
