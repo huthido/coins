@@ -300,6 +300,20 @@ const server = http.createServer(async (req, res) => {
     console.log(`Push test → ${n} thiết bị (còn lại sau dọn dẹp: ${subs.length})`);
     return;
   }
+  if (p === '/myip') {
+    // IP outbound của server — dùng để whitelist trong Binance API
+    // (lệnh giao dịch đi qua proxy nên Binance thấy IP này, không phải IP người dùng)
+    try {
+      const r = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(10_000) });
+      const d = await r.json();
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ outboundIp: d.ip, note: 'Thêm IP này vào danh sách IP tin cậy khi tạo API key Binance' }));
+    } catch (e) {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ msg: 'Không lấy được IP: ' + e.message }));
+    }
+    return;
+  }
   if (p === '/healthz') { res.writeHead(200); res.end('ok'); return; }
 
   // --- File tĩnh ---
