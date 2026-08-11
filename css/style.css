@@ -135,7 +135,8 @@ body {
   .panel { min-height: 0; height: 100%; }
   .table-panel { display: flex; flex-direction: column; }
   .table-scroll { flex: 1; overflow-y: auto; scrollbar-width: thin; }
-  .detail-panel { overflow-y: auto; scrollbar-width: thin; }
+  /* .layout .detail-panel để thắng quy tắc .panel { overflow: hidden } khai báo phía sau */
+  .layout .detail-panel { overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; }
   .disclaimer { flex-shrink: 0; }
 }
 .splitter {
