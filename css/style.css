@@ -127,8 +127,12 @@ body {
 @media (min-width: 1081px) {
   html, body { height: 100%; }
   body { display: flex; flex-direction: column; overflow: hidden; }
-  .layout { flex: 1; min-height: 0; align-items: stretch; }
-  .panel { min-height: 0; }
+  .layout {
+    flex: 1; min-height: 0; align-items: stretch;
+    /* Cố định chiều cao hàng lưới bằng khung nhìn để hai cột tự cuộn được */
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .panel { min-height: 0; height: 100%; }
   .table-panel { display: flex; flex-direction: column; }
   .table-scroll { flex: 1; overflow-y: auto; scrollbar-width: thin; }
   .detail-panel { overflow-y: auto; scrollbar-width: thin; }
