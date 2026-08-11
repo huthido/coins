@@ -1,7 +1,7 @@
 /* Service worker: cache app shell để chạy offline + giữ dữ liệu API lần cuối */
 'use strict';
 
-const SHELL_CACHE = 'coins-shell-v2';
+const SHELL_CACHE = 'coins-shell-v3';
 const API_CACHE = 'coins-api-v1';
 const SHELL = [
   './',
@@ -65,21 +65,18 @@ self.addEventListener('fetch', (e) => {
   if (url.pathname.startsWith('/xapi')) return;
 
   if (url.origin === self.location.origin) {
-    // App shell: lấy từ cache trước (mở tức thì, chạy được offline),
-    // đồng thời tải bản mới về cập nhật cache cho lần sau.
+    // App shell: ưu tiên MẠNG để bản deploy mới đến người dùng ngay lần tải đầu tiên;
+    // mất mạng mới rơi về cache (vẫn chạy offline đầy đủ).
     e.respondWith(
-      caches.match(req).then((cached) => {
-        const fresh = fetch(req)
-          .then((res) => {
-            if (res.ok) {
-              const copy = res.clone();
-              caches.open(SHELL_CACHE).then((c) => c.put(req, copy));
-            }
-            return res;
-          })
-          .catch(() => cached);
-        return cached || fresh;
-      })
+      fetch(req)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(SHELL_CACHE).then((c) => c.put(req, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(req).then((cached) => cached || Response.error()))
     );
   } else if (url.searchParams.has('signature')) {
     // Request đã ký (số dư, lệnh giao dịch): không cache — URL chứa chữ ký
