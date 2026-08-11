@@ -59,7 +59,7 @@ rồi mở `http://localhost:3000` (hoặc cổng tương ứng).
   trình duyệt nếu đã cấp quyền (hiện cả khi đang ở tab khác). Chống spam: không lặp lại
   cùng tín hiệu trong 60 phút; lần quét đầu và khi đổi khung thời gian chỉ tóm tắt.
 - **Web Push — thông báo cả khi ĐÓNG trình duyệt**: server tự quét top 30 coin mỗi 5 phút
-  (khung 1h, hợp lưu 4h, cùng engine `js/engine.js` với app nên tín hiệu khớp 100%) và đẩy
+  (khung 1 ngày, hợp lưu 1 tuần, cùng engine `js/engine.js` với app nên tín hiệu khớp 100%) và đẩy
   thông báo qua Web Push (VAPID) tới mọi thiết bị đã đăng ký. Cách bật: mở app đã deploy
   (HTTPS), bấm 🔔 và cấp quyền thông báo — app tự đăng ký push với server. Bấm vào thông báo
   sẽ mở app đúng coin đó. Khóa VAPID tự sinh lần đầu, lưu trong `server/data/`

@@ -56,7 +56,7 @@ async function broadcast(payload) {
   }
 }
 
-/* ==== Vòng quét tín hiệu (khung 1h, hợp lưu 4h — như mặc định của app) ==== */
+/* ==== Vòng quét tín hiệu (khung 1 ngày, hợp lưu 1 tuần — như mặc định của app) ==== */
 
 const TOP_N = 30;
 const SCAN_MS = parseInt(process.env.SCAN_MS || '', 10) || 5 * 60_000;
@@ -90,8 +90,8 @@ async function scan() {
     for (const t of tickers) {
       try {
         const [raw, rawH] = await Promise.all([
-          getJson(`https://api.binance.com/api/v3/klines?symbol=${t.symbol}&interval=1h&limit=200`),
-          getJson(`https://api.binance.com/api/v3/klines?symbol=${t.symbol}&interval=4h&limit=120`).catch(() => null),
+          getJson(`https://api.binance.com/api/v3/klines?symbol=${t.symbol}&interval=1d&limit=200`),
+          getJson(`https://api.binance.com/api/v3/klines?symbol=${t.symbol}&interval=1w&limit=120`).catch(() => null),
         ]);
         const sig = engine.buildSignal(engine.parseKlines(raw), rawH ? engine.parseKlines(rawH) : null, t);
         const prevCls = prev.get(t.symbol);
@@ -113,7 +113,7 @@ async function scan() {
       const isBuy = sig.cls.startsWith('buy');
       const payload = {
         title: (isBuy ? '🟢 MUA MẠNH: ' : '🔴 BÁN MẠNH: ') + t.base,
-        body: `Điểm ${sig.score > 0 ? '+' : ''}${sig.score} · ${fmtUsd(t.price)} USDT · khung 1h`,
+        body: `Điểm ${sig.score > 0 ? '+' : ''}${sig.score} · ${fmtUsd(t.price)} USDT · khung 1 ngày`,
         tag: 'coins-' + t.symbol,
         sym: t.symbol,
       };
