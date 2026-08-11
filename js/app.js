@@ -506,6 +506,7 @@ function renderDetail(sym) {
 
   renderLegend();
   if (a) { drawPriceChart(a); drawRsiChart(a); }
+  updateTradeUI();
 }
 
 function renderLegend() {
@@ -729,6 +730,269 @@ function bindChartHover() {
   });
 }
 
+/* ================= Giao dịch Binance (API key phía client) ================= */
+/* Khóa API chỉ lưu localStorage của trình duyệt; lệnh ký HMAC-SHA256 bằng Web Crypto
+ * và gửi thẳng tới Binance — không đi qua bất kỳ server trung gian nào. */
+
+const trade = {
+  side: 'BUY',
+  confirming: false,
+  confirmTimer: null,
+  timeOffset: 0,
+  filters: new Map(), // symbol -> {stepSize, minQty}
+  balances: null,     // {USDT: n, <base>: n}
+};
+
+function getTradeCfg() {
+  try { return JSON.parse(localStorage.getItem('binanceApi') || 'null'); }
+  catch { return null; }
+}
+
+function tradeBase(cfg) {
+  return cfg && cfg.testnet ? 'https://testnet.binance.vision' : 'https://api.binance.com';
+}
+
+async function hmacHex(secret, msg) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(msg));
+  return [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function syncServerTime(cfg) {
+  try {
+    const d = await fetchJson(`${tradeBase(cfg)}/api/v3/time`);
+    trade.timeOffset = d.serverTime - Date.now();
+  } catch { trade.timeOffset = 0; }
+}
+
+async function signedFetch(path, params = {}, method = 'GET') {
+  const cfg = getTradeCfg();
+  if (!cfg) throw new Error('Chưa cấu hình API');
+  const q = new URLSearchParams({ ...params, recvWindow: 10000, timestamp: Date.now() + trade.timeOffset }).toString();
+  const sig = await hmacHex(cfg.secret, q);
+  const res = await fetch(`${tradeBase(cfg)}${path}?${q}&signature=${sig}`, {
+    method,
+    headers: { 'X-MBX-APIKEY': cfg.key },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.msg || `Lỗi HTTP ${res.status}`);
+  return data;
+}
+
+async function loadBalances(sym) {
+  const base = sym.slice(0, -4);
+  const acc = await signedFetch('/api/v3/account', { omitZeroBalances: 'true' });
+  const out = { USDT: 0, [base]: 0 };
+  for (const b of acc.balances || []) {
+    if (b.asset === 'USDT') out.USDT = parseFloat(b.free);
+    if (b.asset === base) out[base] = parseFloat(b.free);
+  }
+  trade.balances = out;
+  return out;
+}
+
+async function getSymbolFilter(sym) {
+  if (trade.filters.has(sym)) return trade.filters.get(sym);
+  const cfg = getTradeCfg();
+  const d = await fetchJson(`${tradeBase(cfg)}/api/v3/exchangeInfo?symbol=${encodeURIComponent(sym)}`);
+  const lot = ((d.symbols && d.symbols[0] && d.symbols[0].filters) || []).find(f => f.filterType === 'LOT_SIZE') || {};
+  const f = { stepSize: parseFloat(lot.stepSize) || 0, minQty: parseFloat(lot.minQty) || 0 };
+  trade.filters.set(sym, f);
+  return f;
+}
+
+function roundToStep(qty, step) {
+  if (!step) return qty;
+  const rounded = Math.floor(qty / step) * step;
+  const decimals = Math.max(0, (String(step).split('.')[1] || '').replace(/0+$/, '').length);
+  return parseFloat(rounded.toFixed(decimals));
+}
+
+function resetConfirm() {
+  trade.confirming = false;
+  clearTimeout(trade.confirmTimer);
+  updateTradeButton();
+}
+
+function updateTradeButton() {
+  const btn = $('tradeSubmit');
+  const isBuy = trade.side === 'BUY';
+  btn.className = 'btn trade-submit ' + (isBuy ? 'buy' : 'sell') + (trade.confirming ? ' confirming' : '');
+  if (trade.confirming) {
+    const amt = $('tradeAmount').value;
+    const unit = isBuy ? 'USDT' : (state.selected || '').slice(0, -4);
+    btn.textContent = `⚠ Bấm lần nữa để XÁC NHẬN ${isBuy ? 'MUA' : 'BÁN'} ${amt} ${unit}`;
+  } else {
+    btn.textContent = `Đặt lệnh ${isBuy ? 'MUA' : 'BÁN'} (market)`;
+  }
+}
+
+function updateTradeUI() {
+  const cfg = getTradeCfg();
+  const box = $('tradeBox');
+  const hint = $('tradeHint');
+  if (!cfg || !state.selected) {
+    box.hidden = true;
+    hint.hidden = !state.selected;
+    return;
+  }
+  box.hidden = false;
+  hint.hidden = true;
+  $('tradeEnv').textContent = cfg.testnet ? 'TESTNET' : 'TIỀN THẬT';
+  $('tradeAmount').placeholder = trade.side === 'BUY' ? 'Số USDT muốn chi' : 'Số coin muốn bán';
+  $('tradeUnit').textContent = trade.side === 'BUY' ? 'USDT' : state.selected.slice(0, -4);
+  updateTradeButton();
+  refreshBalances();
+}
+
+async function refreshBalances(force = false) {
+  const sym = state.selected;
+  if (!sym || !getTradeCfg()) return;
+  // renderDetail chạy mỗi 30s — chỉ tải lại số dư khi đổi coin, sau lệnh, hoặc quá 60s
+  if (!force && trade.lastBalanceSym === sym && Date.now() - trade.lastBalanceAt < 60_000) return;
+  trade.lastBalanceSym = sym;
+  trade.lastBalanceAt = Date.now();
+  const base = sym.slice(0, -4);
+  $('tradeBalances').textContent = 'Đang tải số dư…';
+  try {
+    const b = await loadBalances(sym);
+    if (state.selected !== sym) return; // người dùng đã chọn coin khác
+    $('tradeBalances').textContent = `Khả dụng: ${b.USDT.toLocaleString('en-US', { maximumFractionDigits: 2 })} USDT · ${b[base].toLocaleString('en-US', { maximumFractionDigits: 8 })} ${base}`;
+  } catch (e) {
+    $('tradeBalances').textContent = 'Không tải được số dư: ' + e.message;
+  }
+}
+
+async function submitTrade() {
+  const sym = state.selected;
+  const cfg = getTradeCfg();
+  if (!sym || !cfg) return;
+  const amt = parseFloat($('tradeAmount').value);
+  const out = $('tradeResult');
+  out.className = 'trade-result';
+  if (!(amt > 0)) { out.textContent = 'Nhập số lượng hợp lệ trước.'; return; }
+
+  // Bước 1: yêu cầu xác nhận; tự hủy sau 6 giây
+  if (!trade.confirming) {
+    trade.confirming = true;
+    updateTradeButton();
+    clearTimeout(trade.confirmTimer);
+    trade.confirmTimer = setTimeout(resetConfirm, 6000);
+    return;
+  }
+  resetConfirm();
+
+  const btn = $('tradeSubmit');
+  btn.disabled = true;
+  out.textContent = 'Đang gửi lệnh…';
+  try {
+    const params = { symbol: sym, side: trade.side, type: 'MARKET' };
+    if (trade.side === 'BUY') {
+      params.quoteOrderQty = amt;
+    } else {
+      const f = await getSymbolFilter(sym);
+      const qty = roundToStep(amt, f.stepSize);
+      if (!(qty > 0) || qty < f.minQty) throw new Error(`Số lượng quá nhỏ (tối thiểu ${f.minQty})`);
+      params.quantity = qty;
+    }
+    const r = await signedFetch('/api/v3/order', params, 'POST');
+    const spent = parseFloat(r.cummulativeQuoteQty || 0);
+    const got = parseFloat(r.executedQty || 0);
+    out.className = 'trade-result ok';
+    out.textContent = `✔ Lệnh ${r.side} ${r.symbol} khớp (${r.status})\n` +
+      `Khối lượng: ${got} ${sym.slice(0, -4)} · Giá trị: ${spent.toFixed(2)} USDT` +
+      (got > 0 ? ` · Giá TB: ${(spent / got).toPrecision(6)}` : '');
+    refreshBalances(true);
+  } catch (e) {
+    out.className = 'trade-result err';
+    out.textContent = '✖ Lệnh thất bại: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ==== Dialog cấu hình API ==== */
+
+function bindApiDialog() {
+  const dlg = $('apiDialog');
+  const status = $('apiStatus');
+
+  $('apiBtn').addEventListener('click', () => {
+    const cfg = getTradeCfg();
+    $('apiKeyInput').value = cfg ? cfg.key : '';
+    $('apiSecretInput').value = cfg ? cfg.secret : '';
+    $('apiTestnet').checked = cfg ? !!cfg.testnet : true; // mặc định gợi ý testnet
+    status.textContent = '';
+    status.className = 'api-status';
+    dlg.showModal();
+  });
+
+  $('apiCloseBtn').addEventListener('click', () => dlg.close());
+
+  $('apiDeleteBtn').addEventListener('click', () => {
+    localStorage.removeItem('binanceApi');
+    $('apiKeyInput').value = '';
+    $('apiSecretInput').value = '';
+    status.textContent = 'Đã xóa khóa API khỏi trình duyệt.';
+    status.className = 'api-status ok';
+    updateTradeUI();
+  });
+
+  $('apiSaveBtn').addEventListener('click', async () => {
+    const key = $('apiKeyInput').value.trim();
+    const secret = $('apiSecretInput').value.trim();
+    const testnet = $('apiTestnet').checked;
+    if (!key || !secret) {
+      status.textContent = 'Nhập đủ API Key và Secret.';
+      status.className = 'api-status err';
+      return;
+    }
+    if (!window.isSecureContext || !crypto.subtle) {
+      status.textContent = 'Trình duyệt chặn ký HMAC ở ngữ cảnh không an toàn — hãy mở app qua HTTPS hoặc localhost (không dùng file://).';
+      status.className = 'api-status err';
+      return;
+    }
+    localStorage.setItem('binanceApi', JSON.stringify({ key, secret, testnet }));
+    status.textContent = 'Đang kiểm tra kết nối…';
+    status.className = 'api-status';
+    try {
+      await syncServerTime({ testnet });
+      const acc = await signedFetch('/api/v3/account', { omitZeroBalances: 'true' });
+      const n = (acc.balances || []).length;
+      status.textContent = `✔ Kết nối thành công (${testnet ? 'Testnet' : 'Binance thật'}) — ${n} loại tài sản có số dư. Quyền giao dịch: ${acc.canTrade ? 'CÓ' : 'KHÔNG'}.`;
+      status.className = 'api-status ok';
+      updateTradeUI();
+    } catch (e) {
+      status.textContent = '✖ Kết nối thất bại: ' + e.message;
+      status.className = 'api-status err';
+    }
+  });
+}
+
+function bindTradeEvents() {
+  $('tradeSide').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-side]');
+    if (!btn) return;
+    trade.side = btn.dataset.side;
+    document.querySelectorAll('#tradeSide button').forEach(b => b.classList.toggle('active', b === btn));
+    resetConfirm();
+    $('tradeResult').textContent = '';
+    $('tradeResult').className = 'trade-result';
+    updateTradeUI();
+  });
+
+  $('tradeMax').addEventListener('click', () => {
+    if (!trade.balances || !state.selected) return;
+    const base = state.selected.slice(0, -4);
+    $('tradeAmount').value = trade.side === 'BUY' ? trade.balances.USDT : trade.balances[base];
+    resetConfirm();
+  });
+
+  $('tradeAmount').addEventListener('input', resetConfirm);
+  $('tradeSubmit').addEventListener('click', submitTrade);
+}
+
 /* ================= Sự kiện & khởi động ================= */
 
 function bindEvents() {
@@ -807,10 +1071,14 @@ function bindEvents() {
 
   bindChartHover();
   initSplitter();
+  bindApiDialog();
+  bindTradeEvents();
 }
 
 async function init() {
   bindEvents();
+  const tradeCfg = getTradeCfg();
+  if (tradeCfg) syncServerTime(tradeCfg); // bù lệch giờ máy để chữ ký lệnh không bị từ chối
   await loadRate();
   try {
     await loadTickers();

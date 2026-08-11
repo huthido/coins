@@ -48,6 +48,10 @@ self.addEventListener('fetch', (e) => {
         return cached || fresh;
       })
     );
+  } else if (url.searchParams.has('signature')) {
+    // Request đã ký (số dư, lệnh giao dịch): không cache — URL chứa chữ ký
+    // duy nhất mỗi lần nên cache chỉ phình to và lưu vết không cần thiết.
+    return;
   } else {
     // API (Binance, tỷ giá): ưu tiên mạng để có giá mới nhất;
     // mất mạng thì trả về dữ liệu đã lưu lần cuối.

@@ -55,6 +55,23 @@ rồi mở `http://localhost:3000` (hoặc cổng tương ứng).
 - **Chia đôi màn hình** (màn hình ≥ 1080px): kéo thanh dọc giữa bảng và panel chi tiết
   để chỉnh tỷ lệ hai khung (30–72%); nháy đúp để về mặc định; tỷ lệ được ghi nhớ.
 
+## Giao dịch trực tiếp (tùy chọn)
+
+Bấm **⚙️ API** để kết nối API key Binance của bạn — sau đó panel chi tiết mỗi coin có
+khung **Giao dịch nhanh**: đặt lệnh MUA (theo số USDT) / BÁN (theo số coin) kiểu market,
+kèm số dư khả dụng, nút "Tất cả", và **xác nhận 2 bước** trước khi gửi lệnh.
+
+**Bảo mật & lưu ý:**
+
+- Khóa API **chỉ lưu trong localStorage của trình duyệt** và lệnh được ký HMAC-SHA256
+  ngay trên máy bạn (Web Crypto), gửi thẳng tới Binance — không qua server trung gian.
+- Khi tạo key trên Binance: chỉ bật **Enable Spot Trading**, **không bật Withdraw**
+  (dù ai lấy được key cũng không rút được tiền), cân nhắc giới hạn IP.
+- Có chế độ **Testnet** (testnet.binance.vision, bật mặc định khi mở form) — dùng API key
+  của testnet để thử đặt lệnh với tiền ảo trước khi dùng tiền thật.
+- Cần chạy qua **HTTPS hoặc localhost** (Web Crypto không hoạt động trên `file://`).
+- Không dùng trên máy tính công cộng; xóa key bằng nút "Xóa khóa" khi không dùng.
+
 ## PWA — cài đặt & chạy offline
 
 Khi chạy qua **HTTPS hoặc localhost** (không hỗ trợ mở trực tiếp `file://`):

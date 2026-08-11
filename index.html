@@ -27,6 +27,7 @@
       </div>
       <div class="clock" id="lastUpdate">Đang tải…</div>
       <button class="btn" id="refreshBtn" title="Làm mới dữ liệu ngay">⟳ Làm mới</button>
+      <button class="btn" id="apiBtn" title="Cấu hình API Binance để giao dịch">⚙️ API</button>
     </div>
   </header>
 
@@ -112,6 +113,23 @@
           </div>
         </div>
 
+        <div class="trade-box" id="tradeBox" hidden>
+          <h3>Giao dịch nhanh <span class="trade-env" id="tradeEnv"></span></h3>
+          <div class="trade-balances" id="tradeBalances">Đang tải số dư…</div>
+          <div class="trade-row">
+            <div class="seg trade-side" id="tradeSide">
+              <button data-side="BUY" class="active">Mua</button>
+              <button data-side="SELL">Bán</button>
+            </div>
+            <input type="number" id="tradeAmount" min="0" step="any" inputmode="decimal" placeholder="Số USDT">
+            <span class="trade-unit" id="tradeUnit">USDT</span>
+            <button class="btn btn-sm" id="tradeMax" title="Dùng toàn bộ số dư khả dụng">Tất cả</button>
+          </div>
+          <button class="btn trade-submit" id="tradeSubmit">Đặt lệnh MUA (market)</button>
+          <div class="trade-result" id="tradeResult"></div>
+        </div>
+        <div class="trade-hint" id="tradeHint">Muốn đặt lệnh mua/bán trực tiếp? Bấm <strong>⚙️ API</strong> ở góc trên để kết nối API Binance.</div>
+
         <div class="reason-box">
           <h3>Vì sao có đề xuất này?</h3>
           <ul id="dReasons"></ul>
@@ -120,6 +138,33 @@
       </div>
     </section>
   </main>
+
+  <dialog id="apiDialog">
+    <h3>Kết nối API Binance</h3>
+    <p class="api-warn">
+      ⚠️ <strong>Bảo mật:</strong> khóa API chỉ lưu trong trình duyệt này (localStorage),
+      không gửi đi đâu ngoài Binance. Khi tạo khóa hãy <strong>chỉ bật quyền
+      "Enable Spot Trading"</strong> — <strong>tuyệt đối không bật quyền rút tiền
+      (Withdraw)</strong>. Không dùng trên máy tính công cộng.
+      Nên thử <strong>Testnet</strong> trước khi giao dịch tiền thật.
+    </p>
+    <label>API Key
+      <input type="text" id="apiKeyInput" autocomplete="off" spellcheck="false">
+    </label>
+    <label>API Secret
+      <input type="password" id="apiSecretInput" autocomplete="off">
+    </label>
+    <label class="api-check">
+      <input type="checkbox" id="apiTestnet">
+      Dùng Testnet (testnet.binance.vision — tiền ảo thử nghiệm, cần API key riêng của testnet)
+    </label>
+    <div class="api-status" id="apiStatus"></div>
+    <div class="api-actions">
+      <button class="btn" id="apiSaveBtn">Lưu & kiểm tra</button>
+      <button class="btn" id="apiDeleteBtn">Xóa khóa</button>
+      <button class="btn" id="apiCloseBtn">Đóng</button>
+    </div>
+  </dialog>
 
   <footer class="disclaimer">
     ⚠️ Đây là công cụ tham khảo dựa trên chỉ báo kỹ thuật (RSI, EMA, MACD), <strong>không phải lời khuyên đầu tư</strong>.
