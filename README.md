@@ -55,6 +55,17 @@ rồi mở `http://localhost:3000` (hoặc cổng tương ứng).
 - **Chia đôi màn hình** (màn hình ≥ 1080px): kéo thanh dọc giữa bảng và panel chi tiết
   để chỉnh tỷ lệ hai khung (30–72%); nháy đúp để về mặc định; tỷ lệ được ghi nhớ.
 
+## PWA — cài đặt & chạy offline
+
+Khi chạy qua **HTTPS hoặc localhost** (không hỗ trợ mở trực tiếp `file://`):
+
+- Trình duyệt sẽ gợi ý **Cài đặt** app (biểu tượng ⊕ trên thanh địa chỉ Chrome/Edge,
+  hoặc "Thêm vào màn hình chính" trên điện thoại) — chạy như ứng dụng riêng.
+- **Offline**: giao diện mở được ngay không cần mạng; bảng giá và biểu đồ hiển thị
+  **dữ liệu lần cập nhật cuối** đã lưu. Khi có mạng lại, giá tự cập nhật như thường.
+- Cơ chế: service worker (`sw.js`) cache app shell (cache-first, tự cập nhật nền)
+  và cache dữ liệu API theo kiểu network-first (ưu tiên giá mới, mất mạng dùng bản lưu).
+
 ## Deploy lên Coolify
 
 Dự án đã kèm sẵn `Dockerfile` (nginx phục vụ file tĩnh, cổng 80):
