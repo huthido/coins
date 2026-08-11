@@ -64,7 +64,12 @@ kèm số dư khả dụng, nút "Tất cả", và **xác nhận 2 bước** tr�
 **Bảo mật & lưu ý:**
 
 - Khóa API **chỉ lưu trong localStorage của trình duyệt** và lệnh được ký HMAC-SHA256
-  ngay trên máy bạn (Web Crypto), gửi thẳng tới Binance — không qua server trung gian.
+  ngay trên máy bạn (Web Crypto). Vì Binance chặn CORS trên các endpoint có ký,
+  lệnh được chuyển tiếp qua **proxy cùng origin trong nginx của app** (`/xapi`,
+  `/xapi-testnet` — xem `nginx.conf`); proxy chỉ chuyển tiếp nguyên vẹn, không đọc/lưu khóa.
+- **Giao dịch cần chạy app qua Docker/Coolify** (bản nginx kèm proxy). Mở `file://`
+  hay chạy static server thuần vẫn xem giá/phân tích bình thường nhưng không đặt lệnh được
+  (app sẽ báo rõ).
 - Khi tạo key trên Binance: chỉ bật **Enable Spot Trading**, **không bật Withdraw**
   (dù ai lấy được key cũng không rút được tiền), cân nhắc giới hạn IP.
 - Có chế độ **Testnet** (testnet.binance.vision, bật mặc định khi mở form) — dùng API key

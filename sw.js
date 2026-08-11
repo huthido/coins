@@ -31,6 +31,9 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
+  // Proxy giao dịch (/xapi, /xapi-testnet): luôn đi thẳng mạng, không bao giờ cache
+  if (url.pathname.startsWith('/xapi')) return;
+
   if (url.origin === self.location.origin) {
     // App shell: lấy từ cache trước (mở tức thì, chạy được offline),
     // đồng thời tải bản mới về cập nhật cache cho lần sau.

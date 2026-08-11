@@ -142,11 +142,14 @@
   <dialog id="apiDialog">
     <h3>Kết nối API Binance</h3>
     <p class="api-warn">
-      ⚠️ <strong>Bảo mật:</strong> khóa API chỉ lưu trong trình duyệt này (localStorage),
-      không gửi đi đâu ngoài Binance. Khi tạo khóa hãy <strong>chỉ bật quyền
+      ⚠️ <strong>Bảo mật:</strong> khóa API chỉ lưu trong trình duyệt này (localStorage);
+      lệnh được ký ngay trên máy bạn rồi chuyển tiếp tới Binance qua proxy của chính
+      app (server không đọc/lưu khóa). Khi tạo khóa hãy <strong>chỉ bật quyền
       "Enable Spot Trading"</strong> — <strong>tuyệt đối không bật quyền rút tiền
       (Withdraw)</strong>. Không dùng trên máy tính công cộng.
       Nên thử <strong>Testnet</strong> trước khi giao dịch tiền thật.
+      Lưu ý: giao dịch chỉ hoạt động khi app chạy qua Docker/Coolify (có proxy) —
+      Binance chặn CORS nếu trình duyệt gọi thẳng.
     </p>
     <label>API Key
       <input type="text" id="apiKeyInput" autocomplete="off" spellcheck="false">

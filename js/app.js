@@ -749,7 +749,10 @@ function getTradeCfg() {
 }
 
 function tradeBase(cfg) {
-  return cfg && cfg.testnet ? 'https://testnet.binance.vision' : 'https://api.binance.com';
+  // Binance chặn CORS trên endpoint có ký (không cho header X-MBX-APIKEY, không cho POST)
+  // nên trình duyệt không gọi thẳng được — lệnh đi qua proxy cùng origin của app
+  // (nginx.conf chuyển tiếp /xapi → api.binance.com, /xapi-testnet → testnet.binance.vision).
+  return cfg && cfg.testnet ? '/xapi-testnet' : '/xapi';
 }
 
 async function hmacHex(secret, msg) {
@@ -776,7 +779,12 @@ async function signedFetch(path, params = {}, method = 'GET') {
     headers: { 'X-MBX-APIKEY': cfg.key },
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.msg || `Lỗi HTTP ${res.status}`);
+  if (!res.ok) {
+    if (res.status === 404 || res.status === 405) {
+      throw new Error('Server đang chạy không có proxy Binance (/xapi). Tính năng giao dịch cần chạy app qua Docker/Coolify (nginx kèm sẵn proxy) — xem README.');
+    }
+    throw new Error(data.msg || `Lỗi HTTP ${res.status}`);
+  }
   return data;
 }
 
