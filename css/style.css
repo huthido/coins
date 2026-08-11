@@ -167,7 +167,7 @@ table { border-collapse: collapse; width: 100%; }
 thead th {
   text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.4px;
   color: var(--ink-muted); font-weight: 600;
-  padding: 7px 10px; border-bottom: 1px solid var(--grid);
+  padding: 1px; border-bottom: 1px solid var(--grid);
   position: sticky; top: 0; background: var(--surface-1); z-index: 5;
 }
 th.num, td.num { text-align: right; }
@@ -175,7 +175,7 @@ th.sortable { cursor: pointer; user-select: none; }
 th.sortable:hover { color: var(--ink-1); }
 .sort-ind { margin-left: 3px; font-size: 10px; }
 tbody td {
-  padding: 5px 10px; border-bottom: 1px solid var(--grid);
+  padding: 1px; border-bottom: 1px solid var(--grid);
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 tbody tr { cursor: pointer; }
@@ -295,7 +295,7 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
   #filterSel, #sortSel { flex: 1 1 45%; min-width: 0; }
   .status-pill { margin-left: 0; flex-basis: 100%; }
   .layout { grid-template-columns: 1fr; gap: 1px; padding: 0 1px 1px; }
-  thead th, tbody td { padding: 8px 7px; }
+  thead th, tbody td { padding: 1px; }
   /* Ẩn cột phụ trên màn hình hẹp: KL 24h (5), RSI (6), Xu hướng (7) */
   #coinTable th:nth-child(5), #coinTable td:nth-child(5),
   #coinTable th:nth-child(6), #coinTable td:nth-child(6),
@@ -312,7 +312,6 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
 /* Vùng chạm tối thiểu cho ngôi sao trên thiết bị cảm ứng */
 @media (pointer: coarse) {
   .star { padding: 8px; margin: -5px; }
-  tbody td { padding-top: 11px; padding-bottom: 11px; }
 }
 
 /* ==== Footer ==== */
