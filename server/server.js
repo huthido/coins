@@ -162,7 +162,8 @@ function parseFeed(xml, meta) {
     const dateStr = pickTag(b, 'pubDate') || pickTag(b, 'published') || pickTag(b, 'updated') || pickTag(b, 'dc:date');
     const time = Date.parse(stripTags(dateStr)) || 0;
     const desc = stripTags(pickTag(b, 'description') || pickTag(b, 'summary')).slice(0, 260);
-    if (title && link) items.push({ title, link, source: meta.source, lang: meta.lang, time, desc });
+    // Chỉ nhận link http/https — chặn javascript:/data: từ feed bị chiếm quyền
+    if (title && /^https?:\/\//i.test(link)) items.push({ title, link, source: meta.source, lang: meta.lang, time, desc });
   }
   return items;
 }

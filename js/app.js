@@ -1200,10 +1200,14 @@ function renderNews() {
     list = list.filter(n => (n.title + ' ' + n.desc).toLowerCase().includes(q));
   }
   $('newsUpd').textContent = news.updatedAt ? 'cập nhật ' + newsTimeAgo(news.updatedAt) : '';
-  $('newsList').innerHTML = list.slice(0, 40).map(n =>
-    `<li><a href="${esc(n.link)}" target="_blank" rel="noopener noreferrer" title="${esc(n.desc)}">${esc(n.title)}</a>` +
-    `<div class="news-meta">${esc(n.source)} · ${newsTimeAgo(n.time)}</div></li>`
-  ).join('') || '<li class="news-empty">Không có tin nào khớp bộ lọc.</li>';
+  $('newsList').innerHTML = list.slice(0, 40).map(n => {
+    // Phòng thủ hai lớp: server đã lọc, client vẫn chỉ render link http/https
+    const safeLink = /^https?:\/\//i.test(n.link) ? n.link : null;
+    const titleHtml = safeLink
+      ? `<a href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer" title="${esc(n.desc)}">${esc(n.title)}</a>`
+      : `<span title="${esc(n.desc)}">${esc(n.title)}</span>`;
+    return `<li>${titleHtml}<div class="news-meta">${esc(n.source)} · ${newsTimeAgo(n.time)}</div></li>`;
+  }).join('') || '<li class="news-empty">Không có tin nào khớp bộ lọc.</li>';
 }
 
 function updateNewsCoinBtn() {
