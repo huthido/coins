@@ -278,7 +278,9 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
 /* ==== Charts ==== */
 .chart-wrap { margin-top: 10px; }
 .chart-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.chart-tools { display: flex; align-items: center; gap: 6px; }
 .chart-mode button { padding: 2px 9px; font-size: 11.5px; }
+#priceChart { touch-action: none; cursor: crosshair; } /* cho phép kéo/pinch zoom */
 .vol-holder canvas { height: 56px; }
 .chart-legend { display: flex; gap: 14px; font-size: 11px; color: var(--ink-2); margin-bottom: 5px; flex-wrap: wrap; }
 .chart-legend .key { display: inline-flex; align-items: center; gap: 5px; }

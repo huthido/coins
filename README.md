@@ -67,6 +67,9 @@ rồi mở `http://localhost:3000` (hoặc cổng tương ứng).
 - **Panel chi tiết**: biểu đồ giá dạng **nến (mặc định) hoặc đường** + EMA20/50
   (tooltip OHLC theo con trỏ), **thanh khối lượng** màu theo chiều nến, biểu đồ RSI,
   danh sách lý do vì sao có đề xuất, và các chỉ số chính.
+- **Zoom biểu đồ**: lăn chuột để phóng to/thu nhỏ (neo tại con trỏ), kéo ngang để
+  di chuyển, pinch 2 ngón trên màn hình cảm ứng; nháy đúp hoặc nút ⟲ để về toàn cảnh.
+  Ba biểu đồ giá / khối lượng / RSI luôn đồng bộ cùng vùng nhìn.
 - **Bản đồ nhiệt thị trường** (nút ▦ Nhiệt ở panel trái): treemap toàn thị trường —
   diện tích ô = khối lượng 24h, màu xanh/đỏ đậm dần theo % tăng/giảm; bấm ô để mở
   phân tích coin, tôn trọng mọi bộ lọc đang bật (loại tài sản, đà mới, tài sản đang có…).

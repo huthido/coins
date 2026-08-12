@@ -525,6 +525,7 @@ function renderDetail(sym) {
   if (a) { drawPriceChart(a); drawVolChart(a); drawRsiChart(a); }
   updateTradeUI();
   updateNewsCoinBtn();
+  updateZoomUI();
   if (news.byCoin) renderNews();
 }
 
@@ -541,12 +542,12 @@ function drawVolChart(a) {
   const { ctx, w, h } = setupCanvas(canvas);
   ctx.clearRect(0, 0, w, h);
   if (!a.volumes) return;
-  const n = a.volumes.length;
-  const X = (i) => PAD.l + (i / (n - 1)) * (w - PAD.l - PAD.r);
-  const maxV = Math.max(...a.volumes) || 1;
-  const bw = Math.max(1, ((w - PAD.l - PAD.r) / n) * 0.7);
+  const [s, e] = zoomRange(a);
+  const X = makeX(w, s, e);
+  const maxV = Math.max(...a.volumes.slice(s, e + 1)) || 1;
+  const bw = Math.max(1, ((w - PAD.l - PAD.r) / (e - s + 1)) * 0.7);
   const up = cssVar('--good'), down = cssVar('--critical');
-  for (let i = 0; i < n; i++) {
+  for (let i = s; i <= e; i++) {
     const rising = a.opens ? a.closes[i] >= a.opens[i] : (i > 0 ? a.closes[i] >= a.closes[i - 1] : true);
     ctx.fillStyle = rising ? up : down;
     ctx.globalAlpha = 0.75;
@@ -579,25 +580,68 @@ function setupCanvas(canvas) {
 const PAD = { l: 8, r: 62, t: 10, b: 22 };
 let hoverIdx = null;
 
-function chartGeom(a, w, h, useHL = false) {
-  const xs = a.times, n = xs.length;
-  const series = useHL && a.highs ? [a.highs, a.lows, a.ema20, a.ema50] : [a.closes, a.ema20, a.ema50];
-  let min = Infinity, max = -Infinity;
-  for (const s of series) for (const v of s) if (v != null) { if (v < min) min = v; if (v > max) max = v; }
-  const pad = (max - min) * 0.05 || max * 0.01;
-  min -= pad; max += pad;
-  const X = (i) => PAD.l + (i / (n - 1)) * (w - PAD.l - PAD.r);
-  const Y = (v) => PAD.t + (1 - (v - min) / (max - min)) * (h - PAD.t - PAD.b);
-  return { X, Y, min, max, n };
+// Vùng nhìn zoom (chỉ số nến đầu/cuối) — dùng chung cho biểu đồ giá, khối lượng, RSI
+const zoomer = { sym: null, n: 0, s: null, e: null };
+const MIN_ZOOM_SPAN = 10;
+
+function zoomRange(a) {
+  const n = a.closes.length;
+  if (zoomer.sym !== state.selected || zoomer.n !== n || zoomer.s == null) return [0, n - 1];
+  const s = Math.max(0, Math.min(zoomer.s, n - 2));
+  const e = Math.max(s + 1, Math.min(zoomer.e, n - 1));
+  return [s, e];
 }
 
-function drawLine(ctx, arr, X, Y, color) {
+function setZoom(a, s, e) {
+  const n = a.closes.length;
+  if (e - s >= n - 1) { zoomer.s = zoomer.e = null; }
+  else {
+    zoomer.sym = state.selected;
+    zoomer.n = n;
+    zoomer.s = Math.max(0, Math.round(s));
+    zoomer.e = Math.min(n - 1, Math.round(e));
+  }
+  updateZoomUI();
+  redrawCharts();
+}
+
+function resetZoom() {
+  zoomer.s = zoomer.e = null;
+  updateZoomUI();
+  redrawCharts();
+}
+
+function updateZoomUI() {
+  $('zoomReset').hidden = zoomer.s == null || zoomer.sym !== state.selected;
+}
+
+const makeX = (w, s, e) => (i) => PAD.l + ((i - s) / (e - s)) * (w - PAD.l - PAD.r);
+
+function chartGeom(a, w, h, useHL = false) {
+  const n = a.times.length;
+  const [s, e] = zoomRange(a);
+  const series = useHL && a.highs ? [a.highs, a.lows, a.ema20, a.ema50] : [a.closes, a.ema20, a.ema50];
+  let min = Infinity, max = -Infinity;
+  for (const arr of series) {
+    for (let i = s; i <= e; i++) {
+      const v = arr[i];
+      if (v != null) { if (v < min) min = v; if (v > max) max = v; }
+    }
+  }
+  const pad = (max - min) * 0.05 || max * 0.01;
+  min -= pad; max += pad;
+  const X = makeX(w, s, e);
+  const Y = (v) => PAD.t + (1 - (v - min) / (max - min)) * (h - PAD.t - PAD.b);
+  return { X, Y, min, max, n, s, e };
+}
+
+function drawLine(ctx, arr, X, Y, color, s = 0, e = arr.length - 1) {
   ctx.strokeStyle = color;
   ctx.lineWidth = 2;
   ctx.lineJoin = 'round';
   ctx.beginPath();
   let started = false;
-  for (let i = 0; i < arr.length; i++) {
+  for (let i = s; i <= e; i++) {
     if (arr[i] == null) continue;
     if (!started) { ctx.moveTo(X(i), Y(arr[i])); started = true; }
     else ctx.lineTo(X(i), Y(arr[i]));
@@ -610,7 +654,7 @@ function drawPriceChart(a) {
   const { ctx, w, h } = setupCanvas(canvas);
   ctx.clearRect(0, 0, w, h);
   const candleMode = state.chartMode === 'candle' && a.opens;
-  const { X, Y, min, max, n } = chartGeom(a, w, h, candleMode);
+  const { X, Y, min, max, n, s, e } = chartGeom(a, w, h, candleMode);
 
   // lưới ngang + nhãn giá
   ctx.strokeStyle = cssVar('--grid');
@@ -635,16 +679,16 @@ function drawPriceChart(a) {
       ? d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: a.klineIv === '1d' ? undefined : '2-digit' })
       : d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   };
-  [0, Math.floor(n / 2), n - 1].forEach((i, k) => {
+  [s, Math.floor((s + e) / 2), e].forEach((i, k) => {
     ctx.textAlign = k === 0 ? 'left' : k === 2 ? 'right' : 'center';
     ctx.fillText(fmtT(a.times[i]), X(i), h - 6);
   });
 
   if (candleMode) {
     // Biểu đồ nến: xanh tăng / đỏ giảm, bấc = cao-thấp, thân = mở-đóng
-    const bw = Math.max(1, ((w - PAD.l - PAD.r) / n) * 0.7);
+    const bw = Math.max(1, ((w - PAD.l - PAD.r) / (e - s + 1)) * 0.7);
     const up = cssVar('--good'), down = cssVar('--critical');
-    for (let i = 0; i < n; i++) {
+    for (let i = s; i <= e; i++) {
       const o = a.opens[i], c = a.closes[i], hi = a.highs[i], lo = a.lows[i];
       if (![o, c, hi, lo].every(isFinite)) continue;
       const col = c >= o ? up : down;
@@ -656,16 +700,16 @@ function drawPriceChart(a) {
       const yTop = Y(Math.max(o, c));
       ctx.fillRect(x - bw / 2, yTop, bw, Math.max(1, Y(Math.min(o, c)) - yTop));
     }
-    drawLine(ctx, a.ema50, X, Y, cssVar('--series-3'));
-    drawLine(ctx, a.ema20, X, Y, cssVar('--series-2'));
+    drawLine(ctx, a.ema50, X, Y, cssVar('--series-3'), s, e);
+    drawLine(ctx, a.ema20, X, Y, cssVar('--series-2'), s, e);
   } else {
-    drawLine(ctx, a.ema50, X, Y, cssVar('--series-3'));
-    drawLine(ctx, a.ema20, X, Y, cssVar('--series-2'));
-    drawLine(ctx, a.closes, X, Y, cssVar('--series-1'));
+    drawLine(ctx, a.ema50, X, Y, cssVar('--series-3'), s, e);
+    drawLine(ctx, a.ema20, X, Y, cssVar('--series-2'), s, e);
+    drawLine(ctx, a.closes, X, Y, cssVar('--series-1'), s, e);
   }
 
   // crosshair
-  if (hoverIdx != null && hoverIdx >= 0 && hoverIdx < n) {
+  if (hoverIdx != null && hoverIdx >= s && hoverIdx <= e) {
     const x = Math.round(X(hoverIdx)) + 0.5;
     ctx.strokeStyle = cssVar('--axis');
     ctx.setLineDash([3, 3]);
@@ -685,8 +729,8 @@ function drawRsiChart(a) {
   const canvas = $('rsiChart');
   const { ctx, w, h } = setupCanvas(canvas);
   ctx.clearRect(0, 0, w, h);
-  const n = a.times.length;
-  const X = (i) => PAD.l + (i / (n - 1)) * (w - PAD.l - PAD.r);
+  const [s, e] = zoomRange(a);
+  const X = makeX(w, s, e);
   const Y = (v) => 4 + (1 - v / 100) * (h - 8);
 
   ctx.font = '11px system-ui, sans-serif';
@@ -701,7 +745,7 @@ function drawRsiChart(a) {
     ctx.fillText(String(lv), w - PAD.r + 6, y + 3.5);
   }
   ctx.setLineDash([]);
-  drawLine(ctx, a.rsiArr.map(v => v == null ? null : v), X, Y, cssVar('--series-1'));
+  drawLine(ctx, a.rsiArr, X, Y, cssVar('--series-1'), s, e);
 }
 
 function redrawCharts() {
@@ -793,6 +837,93 @@ function updateView() {
   if (heat) drawHeatmap();
 }
 
+/* ==== Zoom biểu đồ: lăn chuột / kéo / pinch / nháy đúp ==== */
+
+function bindChartZoom() {
+  const canvas = $('priceChart');
+  const cur = () => state.selected && state.analysis.get(state.selected);
+
+  // Lăn chuột: phóng to/thu nhỏ, neo tại vị trí con trỏ
+  canvas.addEventListener('wheel', (ev) => {
+    const a = cur();
+    if (!a) return;
+    ev.preventDefault();
+    const n = a.closes.length;
+    const [s, e] = zoomRange(a);
+    const rect = canvas.getBoundingClientRect();
+    const frac = Math.max(0, Math.min(1, (ev.clientX - rect.left - PAD.l) / (rect.width - PAD.l - PAD.r)));
+    const span = e - s;
+    const anchor = s + frac * span;
+    const newSpan = Math.max(MIN_ZOOM_SPAN, Math.min(n - 1, Math.round(span * (ev.deltaY > 0 ? 1.25 : 0.8))));
+    let ns = Math.round(anchor - frac * newSpan);
+    ns = Math.max(0, Math.min(ns, n - 1 - newSpan));
+    setZoom(a, ns, ns + newSpan);
+  }, { passive: false });
+
+  // Kéo để di chuyển (pan) + pinch 2 ngón để zoom
+  const pts = new Map(); // pointerId -> clientX
+  let panStart = null;   // {x, s, e}
+  let pinchStart = null; // {dist, s, e, midFrac}
+
+  canvas.addEventListener('pointerdown', (ev) => {
+    const a = cur();
+    if (!a) return;
+    pts.set(ev.pointerId, ev.clientX);
+    canvas.setPointerCapture(ev.pointerId);
+    const [s, e] = zoomRange(a);
+    if (pts.size === 1) {
+      panStart = { x: ev.clientX, s, e };
+      pinchStart = null;
+    } else if (pts.size === 2) {
+      const [x1, x2] = [...pts.values()];
+      const rect = canvas.getBoundingClientRect();
+      pinchStart = {
+        dist: Math.max(10, Math.abs(x1 - x2)),
+        s, e,
+        midFrac: Math.max(0, Math.min(1, ((x1 + x2) / 2 - rect.left - PAD.l) / (rect.width - PAD.l - PAD.r))),
+      };
+      panStart = null;
+    }
+  });
+
+  canvas.addEventListener('pointermove', (ev) => {
+    const a = cur();
+    if (!a || !pts.has(ev.pointerId)) return;
+    pts.set(ev.pointerId, ev.clientX);
+    const n = a.closes.length;
+    const rect = canvas.getBoundingClientRect();
+    const plotW = rect.width - PAD.l - PAD.r;
+    if (pinchStart && pts.size === 2) {
+      const [x1, x2] = [...pts.values()];
+      const scale = Math.max(10, Math.abs(x1 - x2)) / pinchStart.dist;
+      const span0 = pinchStart.e - pinchStart.s;
+      const newSpan = Math.max(MIN_ZOOM_SPAN, Math.min(n - 1, Math.round(span0 / scale)));
+      const anchor = pinchStart.s + pinchStart.midFrac * span0;
+      let ns = Math.round(anchor - pinchStart.midFrac * newSpan);
+      ns = Math.max(0, Math.min(ns, n - 1 - newSpan));
+      setZoom(a, ns, ns + newSpan);
+    } else if (panStart && pts.size === 1) {
+      const span = panStart.e - panStart.s;
+      if (span >= n - 1) return; // chưa zoom thì không cần pan
+      const di = Math.round(((panStart.x - ev.clientX) / plotW) * span);
+      let ns = Math.max(0, Math.min(panStart.s + di, n - 1 - span));
+      setZoom(a, ns, ns + span);
+    }
+  });
+
+  const endPointer = (ev) => {
+    pts.delete(ev.pointerId);
+    if (pts.size < 2) pinchStart = null;
+    if (pts.size === 0) panStart = null;
+  };
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+
+  // Nháy đúp hoặc nút ⟲: về toàn cảnh
+  canvas.addEventListener('dblclick', resetZoom);
+  $('zoomReset').addEventListener('click', resetZoom);
+}
+
 /* ==== Thanh kéo chia đôi màn hình (màn hình lớn) ==== */
 
 function initSplitter() {
@@ -847,9 +978,9 @@ function bindChartHover() {
     if (!a) return;
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const n = a.times.length;
+    const [zs, ze] = zoomRange(a);
     const frac = (x - PAD.l) / (rect.width - PAD.l - PAD.r);
-    const idx = Math.max(0, Math.min(n - 1, Math.round(frac * (n - 1))));
+    const idx = Math.max(zs, Math.min(ze, zs + Math.round(frac * (ze - zs))));
     if (idx !== hoverIdx) {
       hoverIdx = idx;
       drawPriceChart(a);
@@ -1669,6 +1800,7 @@ function bindEvents() {
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redrawCharts);
 
   bindChartHover();
+  bindChartZoom();
   initSplitter();
   bindApiDialog();
   bindTradeEvents();
