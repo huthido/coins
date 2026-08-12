@@ -97,20 +97,24 @@ body {
 
 /* ==== Controls row ==== */
 .controls {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 5px;
   padding: 1px; flex-wrap: wrap;
 }
 #searchBox, #sortSel, #filterSel, #assetSel {
   font: inherit; color: var(--ink-1);
   background: var(--surface-1);
   border: 1px solid var(--border); border-radius: 7px;
-  padding: 5px 8px;
+  padding: 4px 6px;
 }
-#searchBox { width: 190px; }
+#searchBox { width: 168px; }
+/* Menu chọn: giới hạn bề rộng khi đóng (mở ra danh sách vẫn đủ chữ) */
+#filterSel { max-width: 128px; }
+#assetSel { max-width: 118px; }
+#sortSel { max-width: 132px; }
 .seg { display: flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; background: var(--surface-1); }
 .seg button {
   font: inherit; color: var(--ink-2);
-  background: none; border: none; padding: 5px 10px; cursor: pointer;
+  background: none; border: none; padding: 4px 8px; cursor: pointer;
 }
 .seg button:hover { background: var(--hover-wash); }
 .seg button.active { color: var(--ink-1); font-weight: 600; background: var(--hover-wash); }
@@ -118,16 +122,16 @@ body {
 
 /* ==== Thanh thông tin thị trường ==== */
 .market-bar {
-  display: flex; gap: 6px; flex-wrap: wrap;
-  padding: 1px; margin-bottom: 2px;
+  display: flex; gap: 4px; flex-wrap: wrap;
+  padding: 1px; margin-bottom: 1px;
 }
 .m-tile {
-  display: flex; align-items: baseline; gap: 6px;
+  display: flex; align-items: baseline; gap: 5px;
   border: 1px solid var(--border); border-radius: 7px;
-  padding: 3px 9px; background: var(--surface-1); cursor: default;
+  padding: 2px 7px; background: var(--surface-1); cursor: default;
 }
-.m-tile .k { font-size: 10.5px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.4px; }
-.m-tile .v { font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.m-tile .k { font-size: 10px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.3px; }
+.m-tile .v { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 .risk-line {
   margin-top: 8px; padding: 6px 9px;

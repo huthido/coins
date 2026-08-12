@@ -43,30 +43,30 @@
   </header>
 
   <div class="controls">
-    <input type="search" id="searchBox" placeholder="Tìm / nhập tên coin rồi Enter (VD: PEPE)" autocomplete="off">
-    <button class="btn" id="lookupBtn" title="Phân tích & đánh giá coin theo tên vừa nhập">🔎 Phân tích</button>
+    <input type="search" id="searchBox" placeholder="Tìm coin + Enter (VD: PEPE)" autocomplete="off">
+    <button class="btn" id="lookupBtn" title="Phân tích & đánh giá coin theo tên vừa nhập">🔎</button>
     <div class="seg" id="intervalSeg" role="tablist" aria-label="Khung thời gian phân tích">
-      <button data-iv="15m">15p</button>
-      <button data-iv="1h">1 giờ</button>
-      <button data-iv="4h">4 giờ</button>
-      <button data-iv="1d" class="active">1 ngày</button>
-      <button data-iv="1w">1 tuần</button>
-      <button data-iv="1M">1 tháng</button>
-      <button data-iv="1y" title="Nến ngày, nhìn cả năm">1 năm</button>
+      <button data-iv="15m" title="Khung 15 phút">15m</button>
+      <button data-iv="1h" title="Khung 1 giờ">1h</button>
+      <button data-iv="4h" title="Khung 4 giờ">4h</button>
+      <button data-iv="1d" class="active" title="Khung 1 ngày">1D</button>
+      <button data-iv="1w" title="Khung 1 tuần">1W</button>
+      <button data-iv="1M" title="Khung 1 tháng">1M</button>
+      <button data-iv="1y" title="Nến ngày, nhìn cả năm">1Y</button>
     </div>
     <select id="filterSel" title="Lọc danh sách coin">
-      <option value="all">Lọc: Tất cả coin</option>
-      <option value="watch">Lọc: ★ Theo dõi đặc biệt</option>
-      <option value="holding">Lọc: 💼 Tài sản đang có (cần API)</option>
-      <option value="momoUp">Lọc: ↗ Đà tăng mới — cơ hội mua sớm</option>
-      <option value="momoDown">Lọc: ↘ Đà giảm mới — bán trước khi giảm sâu</option>
+      <option value="all">Lọc: Tất cả</option>
+      <option value="watch">Lọc: ★ Theo dõi</option>
+      <option value="holding">Lọc: 💼 Đang có (cần API)</option>
+      <option value="momoUp">Lọc: ↗ Đà tăng mới</option>
+      <option value="momoDown">Lọc: ↘ Đà giảm mới</option>
       <option value="buy">Lọc: Đề xuất MUA</option>
       <option value="sell">Lọc: Đề xuất BÁN</option>
     </select>
     <select id="assetSel" title="Lọc theo loại tài sản">
-      <option value="all">Loại: Tất cả tài sản</option>
-      <option value="l1">Loại: Layer 1 (chuỗi nền tảng)</option>
-      <option value="l2">Loại: Layer 2 (mở rộng)</option>
+      <option value="all">Loại: Tất cả</option>
+      <option value="l1">Loại: Layer 1</option>
+      <option value="l2">Loại: Layer 2</option>
       <option value="defi">Loại: DeFi</option>
       <option value="meme">Loại: Meme</option>
       <option value="ai">Loại: AI & Dữ liệu</option>
@@ -77,27 +77,27 @@
       <option value="infra">Loại: Hạ tầng / Lưu trữ</option>
       <option value="other">Loại: Khác</option>
     </select>
-    <select id="sortSel" title="Sắp xếp danh sách">
-      <option value="strength">Sắp xếp: Tín hiệu mạnh nhất</option>
-      <option value="volume">Sắp xếp: Khối lượng 24h</option>
-      <option value="change">Sắp xếp: % thay đổi 24h</option>
-      <option value="name">Sắp xếp: Tên coin</option>
+    <select id="sortSel" title="Sắp xếp danh sách (hoặc bấm tiêu đề cột)">
+      <option value="strength">Xếp: Tín hiệu mạnh</option>
+      <option value="volume">Xếp: KL 24h</option>
+      <option value="change">Xếp: % 24h</option>
+      <option value="name">Xếp: Tên coin</option>
     </select>
     <div class="status-pill" id="scanStatus"></div>
   </div>
 
   <div class="market-bar" id="marketBar" hidden>
-    <div class="m-tile" title="Chỉ số tâm lý thị trường (alternative.me): 0 = sợ hãi cực độ, 100 = tham lam cực độ. Tham lam cực độ thường là vùng rủi ro khi mua đuổi.">
-      <span class="k">Sợ hãi / Tham lam</span><span class="v" id="mFng">—</span>
+    <div class="m-tile" title="Chỉ số tâm lý thị trường Sợ hãi/Tham lam (alternative.me): 0 = sợ hãi cực độ, 100 = tham lam cực độ. Tham lam cực độ thường là vùng rủi ro khi mua đuổi.">
+      <span class="k">Tâm lý</span><span class="v" id="mFng">—</span>
     </div>
-    <div class="m-tile" title="Tỷ trọng vốn hóa BTC — tăng: tiền dồn về BTC, altcoin yếu; giảm: mùa altcoin">
-      <span class="k">BTC Dominance</span><span class="v" id="mDom">—</span>
+    <div class="m-tile" title="BTC Dominance — tỷ trọng vốn hóa BTC. Tăng: tiền dồn về BTC, altcoin yếu; giảm: mùa altcoin">
+      <span class="k">BTC.D</span><span class="v" id="mDom">—</span>
     </div>
     <div class="m-tile" title="Tổng vốn hóa thị trường crypto (CoinGecko) và thay đổi 24h">
-      <span class="k">Vốn hóa thị trường</span><span class="v" id="mMcap">—</span>
+      <span class="k">Vốn hóa</span><span class="v" id="mMcap">—</span>
     </div>
     <div class="m-tile" title="Số coin tăng giá 24h trong danh sách theo dõi — đo độ rộng của sóng tăng/giảm">
-      <span class="k">Độ rộng thị trường</span><span class="v" id="mBreadth">—</span>
+      <span class="k">Độ rộng</span><span class="v" id="mBreadth">—</span>
     </div>
   </div>
 
