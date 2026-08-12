@@ -53,7 +53,9 @@ rồi mở `http://localhost:3000` (hoặc cổng tương ứng).
   10 phút từ CoinDesk, Cointelegraph, Bitcoin Magazine và Coin68 (tiếng Việt), khử trùng
   lặp và phục vụ qua `/news`. Trên giao diện có ô **tìm kiếm tin**, lọc theo ngôn ngữ
   (Việt/Anh), và nút **"Tin về <coin>"** lọc tin nhắc đến coin đang chọn (nhận cả tên
-  đầy đủ — BTC/bitcoin, SOL/solana…). Cần bản deploy có server Node; hosting tĩnh sẽ tự ẩn khu tin.
+  đầy đủ — BTC/bitcoin, SOL/solana…). Nút **🌐 Dịch** dịch tiêu đề tin tiếng Anh sang
+  tiếng Việt (proxy Google Translate miễn phí qua server, cache phía server; rê chuột
+  lên tin đã dịch để xem tiêu đề gốc). Cần bản deploy có server Node; hosting tĩnh sẽ tự ẩn khu tin.
 - **Thông báo tín hiệu mạnh** (nút 🔔): khi một coin *chuyển sang* MUA MẠNH / BÁN MẠNH,
   app hiện toast ở góc màn hình (bấm vào để mở coin đó) và gửi thông báo hệ thống của
   trình duyệt nếu đã cấp quyền (hiện cả khi đang ở tab khác). Chống spam: không lặp lại

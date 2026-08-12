@@ -362,7 +362,8 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
   font: inherit; color: var(--ink-1); background: var(--surface-1);
   border: 1px solid var(--border); border-radius: 7px; padding: 4px 6px;
 }
-#newsCoinBtn.on { color: var(--series-1); border-color: var(--series-1); }
+#newsCoinBtn.on, #newsTransBtn.on { color: var(--series-1); border-color: var(--series-1); }
+.news-trans-note { font-size: 10px; color: var(--ink-muted); font-style: italic; }
 .news-list { list-style: none; margin: 0; padding: 0; }
 .news-list li { padding: 6px 2px; border-bottom: 1px solid var(--grid); }
 .news-list li:last-child { border-bottom: none; }

@@ -195,6 +195,40 @@ async function refreshNews() {
   }
 }
 
+/* ==== Dịch tin tức (proxy Google Translate miễn phí + cache) ==== */
+
+const transCache = new Map();
+const TRANS_CACHE_MAX = 3000;
+
+async function translateOne(text) {
+  if (transCache.has(text)) return transCache.get(text);
+  const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=vi&dt=t&q=' + encodeURIComponent(text);
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(10_000),
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CoinsApp/1.0)' },
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const d = await res.json();
+  const out = (d[0] || []).map(seg => seg && seg[0] ? seg[0] : '').join('').trim();
+  if (!out) throw new Error('empty');
+  if (transCache.size >= TRANS_CACHE_MAX) transCache.delete(transCache.keys().next().value);
+  transCache.set(text, out);
+  return out;
+}
+
+async function translateBatch(texts) {
+  const out = new Array(texts.length).fill(null);
+  let i = 0;
+  const workers = Array.from({ length: 8 }, async () => {
+    while (i < texts.length) {
+      const idx = i++;
+      try { out[idx] = await translateOne(texts[idx]); } catch { out[idx] = null; }
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
 /* ==== HTTP server ==== */
 
 function readBody(req) {
@@ -275,6 +309,16 @@ const server = http.createServer(async (req, res) => {
     }
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' });
     res.end(JSON.stringify({ updatedAt: newsUpdatedAt, total: list.length, items: list.slice(0, limit) }));
+    return;
+  }
+  if (p === '/translate' && req.method === 'POST') {
+    const body = await readBody(req);
+    const texts = (body && Array.isArray(body.texts) ? body.texts : [])
+      .slice(0, 60)
+      .map(t => String(t).slice(0, 400));
+    const items = texts.length ? await translateBatch(texts) : [];
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ items }));
     return;
   }
   if (p === '/push/status') {

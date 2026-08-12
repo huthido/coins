@@ -1551,7 +1551,13 @@ function bindTradeEvents() {
 
 /* ==== Tin tức thị trường (server thu thập RSS, client tìm/lọc) ==== */
 
-const news = { items: [], updatedAt: 0, available: false, q: '', lang: '', byCoin: false };
+const news = {
+  items: [], updatedAt: 0, available: false, q: '', lang: '', byCoin: false,
+  translate: localStorage.getItem('newsTrans') === 'true',
+  viMap: new Map(),    // link -> tiêu đề đã dịch
+  failed: new Set(),   // link dịch lỗi — không thử lại liên tục
+  translating: false,
+};
 
 // Tên đầy đủ của các coin lớn để lọc tin chính xác hơn
 const COIN_NAMES = {
@@ -1611,14 +1617,57 @@ function renderNews() {
     list = list.filter(n => (n.title + ' ' + n.desc).toLowerCase().includes(q));
   }
   $('newsUpd').textContent = news.updatedAt ? 'cập nhật ' + newsTimeAgo(news.updatedAt) : '';
-  $('newsList').innerHTML = list.slice(0, 40).map(n => {
+  const shown = list.slice(0, 40);
+  $('newsList').innerHTML = shown.map(n => {
     // Phòng thủ hai lớp: server đã lọc, client vẫn chỉ render link http/https
     const safeLink = /^https?:\/\//i.test(n.link) ? n.link : null;
+    const vi = news.translate && n.lang === 'en' ? news.viMap.get(n.link) : null;
+    const shownTitle = vi || n.title;
+    const transNote = vi ? ' <span class="news-trans-note">· đã dịch</span>' : '';
     const titleHtml = safeLink
-      ? `<a href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer" title="${esc(n.desc)}">${esc(n.title)}</a>`
-      : `<span title="${esc(n.desc)}">${esc(n.title)}</span>`;
-    return `<li>${titleHtml}<div class="news-meta">${esc(n.source)} · ${newsTimeAgo(n.time)}</div></li>`;
+      ? `<a href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer" title="${esc(vi ? n.title + '\n---\n' + n.desc : n.desc)}">${esc(shownTitle)}</a>`
+      : `<span title="${esc(n.desc)}">${esc(shownTitle)}</span>`;
+    return `<li>${titleHtml}<div class="news-meta">${esc(n.source)} · ${newsTimeAgo(n.time)}${transNote}</div></li>`;
   }).join('') || '<li class="news-empty">Không có tin nào khớp bộ lọc.</li>';
+  if (news.translate) ensureTranslations(shown);
+}
+
+// Dịch dần các tin tiếng Anh đang hiển thị (qua proxy /translate của server, có cache)
+async function ensureTranslations(shown) {
+  if (news.translating) return;
+  const pending = shown.filter(n =>
+    n.lang === 'en' && !news.viMap.has(n.link) && !news.failed.has(n.link));
+  if (!pending.length) return;
+  news.translating = true;
+  try {
+    const res = await fetch('translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texts: pending.map(n => n.title) }),
+    });
+    if (!res.ok) throw new Error('no-endpoint');
+    const d = await res.json();
+    let got = 0;
+    pending.forEach((n, i) => {
+      const vi = d.items && d.items[i];
+      if (vi) { news.viMap.set(n.link, vi); got++; }
+      else news.failed.add(n.link);
+    });
+    news.translating = false;
+    if (got) renderNews();
+  } catch {
+    news.translating = false;
+    news.translate = false;
+    localStorage.setItem('newsTrans', 'false');
+    updateNewsTransBtn();
+    showToast('Không dịch được tin', 'Server hiện tại chưa có dịch vụ dịch — cần bản deploy mới nhất.', 'sell', null);
+  }
+}
+
+function updateNewsTransBtn() {
+  const btn = $('newsTransBtn');
+  btn.className = 'btn btn-sm' + (news.translate ? ' on' : '');
+  btn.textContent = news.translate ? '✓ 🌐 Dịch' : '🌐 Dịch';
 }
 
 function updateNewsCoinBtn() {
@@ -1648,6 +1697,15 @@ function bindNews() {
     updateNewsCoinBtn();
     renderNews();
   });
+
+  $('newsTransBtn').addEventListener('click', () => {
+    news.translate = !news.translate;
+    localStorage.setItem('newsTrans', String(news.translate));
+    news.failed.clear();
+    updateNewsTransBtn();
+    renderNews();
+  });
+  updateNewsTransBtn();
 }
 
 /* ==== Chuyển theme sáng / tối / tự động ==== */
