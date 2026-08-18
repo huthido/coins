@@ -835,9 +835,7 @@ function updateView() {
   $('heatHolder').hidden = !heat;
   const layout = document.querySelector('.layout');
   if (layout) layout.classList.remove('collapsed');
-  const ctrl = document.querySelector('.controls');
-  if (ctrl) ctrl.classList.remove('hidden');
-  $('marketBar').classList.remove('hidden');
+  $('toolbar').classList.remove('hidden');
   document.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('active', b.dataset.view === state.view));
   if (heat) drawHeatmap();
 }
@@ -1800,8 +1798,7 @@ function bindEvents() {
 
   $('collapseBtn').addEventListener('click', () => {
     const collapsed = document.querySelector('.layout').classList.toggle('collapsed');
-    document.querySelector('.controls').classList.toggle('hidden', collapsed);
-    $('marketBar').classList.toggle('hidden', collapsed);
+    $('toolbar').classList.toggle('hidden', collapsed);
   });
 
   // Bấm vào ô trên bản đồ nhiệt → chọn coin

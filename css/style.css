@@ -96,6 +96,7 @@ body {
 .btn:hover { background: var(--hover-wash); }
 
 /* ==== Controls row ==== */
+.toolbar { flex-shrink: 0; }
 .controls {
   display: flex; align-items: center; gap: 5px;
   padding: 1px; flex-wrap: wrap;
@@ -181,7 +182,7 @@ body {
 @media (max-width: 1080px) and (orientation: landscape) {
   html, body { height: 100%; }
   body { overflow: hidden; display: flex; flex-direction: column; }
-  .topbar, .controls, .market-bar { flex-shrink: 0; }
+  .topbar, .toolbar { flex-shrink: 0; }
   .layout {
     grid-template-columns: 35% 1fr;
     gap: 1px; padding: 0 1px 1px;
@@ -472,8 +473,7 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
   .brand .sub { display: none; }
   .topbar-right { gap: 8px; }
   .clock { display: none; }
-  .controls { padding: 1px; gap: 8px; flex-shrink: 0; }
-  .market-bar { flex-shrink: 0; }
+  .controls { padding: 1px; gap: 8px; }
   #searchBox { flex: 1 1 130px; width: auto; min-width: 0; }
   .seg { flex: 1 1 100%; }
   .seg button { flex: 1; padding: 8px 4px; }
