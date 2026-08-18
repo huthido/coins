@@ -317,12 +317,13 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
 /* pan-y: vuốt DỌC trên biểu đồ vẫn cuộn trang bình thường (mobile);
  * kéo NGANG để pan và pinch 2 ngón để zoom do JS xử lý */
 #priceChart { touch-action: pan-y; cursor: crosshair; }
-.vol-holder canvas { height: 36px; }
+/* .chart-holder.vol-holder để thắng .chart-holder canvas (đứng sau) và cả các override mobile */
+.chart-holder.vol-holder canvas { height: 36px; }
 .chart-legend { display: flex; gap: 8px; font-size: 10px; color: var(--ink-2); flex-wrap: wrap; }
 .chart-legend .key { display: inline-flex; align-items: center; gap: 4px; }
 .chart-legend .swatch { width: 10px; height: 2px; border-radius: 1px; display: inline-block; }
 .chart-holder { position: relative; }
-.chart-holder canvas { display: block; width: 100%; height: 210px; }
+.chart-holder canvas { display: block; width: 100%; height: 290px; }
 .rsi-holder canvas { height: 78px; }
 .chart-title-row { margin-top: 8px; }
 .chart-subtitle { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--ink-muted); }
@@ -526,7 +527,7 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
   .momo-sm { display: inline-block; }
   .detail-price .big { font-size: 20px; }
   .verdict { min-width: 90px; padding: 8px 12px; font-size: 13px; }
-  .chart-holder canvas { height: 200px; }
+  .chart-holder canvas { height: 260px; }
   .rsi-holder canvas { height: 76px; }
   .ind-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
   .disclaimer { flex-shrink: 0; margin: 0 1px 1px; }

@@ -593,11 +593,15 @@ let hoverIdx = null;
 const zoomer = { sym: null, n: 0, s: null, e: null };
 const MIN_ZOOM_SPAN = 10;
 
+// Cho phép kéo sang trái vượt qua nến mới nhất tối đa 50% khung nhìn (chừa khoảng trống
+// bên phải như TradingView) — overhang tính theo span đang xem
+const zoomOverhang = (span) => Math.round(span * 0.5);
+
 function zoomRange(a) {
   const n = a.closes.length;
   if (zoomer.sym !== state.selected || zoomer.n !== n || zoomer.s == null) return [0, n - 1];
   const s = Math.max(0, Math.min(zoomer.s, n - 2));
-  const e = Math.max(s + 1, Math.min(zoomer.e, n - 1));
+  const e = Math.max(s + 1, Math.min(zoomer.e, n - 1 + zoomOverhang(zoomer.e - zoomer.s)));
   return [s, e];
 }
 
@@ -608,7 +612,7 @@ function setZoom(a, s, e) {
     zoomer.sym = state.selected;
     zoomer.n = n;
     zoomer.s = Math.max(0, Math.round(s));
-    zoomer.e = Math.min(n - 1, Math.round(e));
+    zoomer.e = Math.min(n - 1 + zoomOverhang(Math.round(e) - Math.round(s)), Math.round(e));
   }
   updateZoomUI();
   redrawCharts();
@@ -689,8 +693,10 @@ function drawPriceChart(a) {
       : d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   };
   [s, Math.floor((s + e) / 2), e].forEach((i, k) => {
+    // vùng nhìn có thể vượt quá nến cuối (khoảng trống bên phải) — kẹp về nến có dữ liệu
+    const ti = Math.min(i, n - 1);
     ctx.textAlign = k === 0 ? 'left' : k === 2 ? 'right' : 'center';
-    ctx.fillText(fmtT(a.times[i]), X(i), h - 6);
+    ctx.fillText(fmtT(a.times[ti]), X(i), h - 6);
   });
 
   if (candleMode) {
@@ -864,13 +870,17 @@ function heatCellAt(e) {
   return heatCells.find(c => x >= c.x && x < c.x + c.w && y >= c.y && y < c.y + c.h);
 }
 
+// Toolbar (bộ lọc + thanh thị trường) MẶC ĐỊNH ẨN; người dùng bấm ☰ thì lưu lựa chọn
+const toolbarHidden = () => localStorage.getItem('toolbarHidden') !== '0';
+const applyToolbarPref = () => $('toolbar').classList.toggle('hidden', toolbarHidden());
+
 function updateView() {
   const heat = state.view === 'heat';
   $('tableScroll').hidden = heat;
   $('heatHolder').hidden = !heat;
   const layout = document.querySelector('.layout');
   if (layout) layout.classList.remove('collapsed');
-  $('toolbar').classList.remove('hidden');
+  applyToolbarPref();
   document.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('active', b.dataset.view === state.view));
   if (heat) drawHeatmap();
 }
@@ -894,7 +904,7 @@ function bindChartZoom() {
     const anchor = s + frac * span;
     const newSpan = Math.max(MIN_ZOOM_SPAN, Math.min(n - 1, Math.round(span * (ev.deltaY > 0 ? 1.25 : 0.8))));
     let ns = Math.round(anchor - frac * newSpan);
-    ns = Math.max(0, Math.min(ns, n - 1 - newSpan));
+    ns = Math.max(0, Math.min(ns, n - 1 - newSpan + zoomOverhang(newSpan)));
     setZoom(a, ns, ns + newSpan);
   }, { passive: false });
 
@@ -940,7 +950,7 @@ function bindChartZoom() {
       const newSpan = Math.max(MIN_ZOOM_SPAN, Math.min(n - 1, Math.round(span0 / scale)));
       const anchor = pinchStart.s + pinchStart.midFrac * span0;
       let ns = Math.round(anchor - pinchStart.midFrac * newSpan);
-      ns = Math.max(0, Math.min(ns, n - 1 - newSpan));
+      ns = Math.max(0, Math.min(ns, n - 1 - newSpan + zoomOverhang(newSpan)));
       setZoom(a, ns, ns + newSpan);
     } else if (panStart && pts.size === 1) {
       if (!panStart.active) {
@@ -953,7 +963,8 @@ function bindChartZoom() {
       const span = panStart.e - panStart.s;
       if (span >= n - 1) return; // chưa zoom thì không cần pan
       const di = Math.round(((panStart.x - ev.clientX) / plotW) * span);
-      let ns = Math.max(0, Math.min(panStart.s + di, n - 1 - span));
+      // cho kéo vượt nến cuối tối đa 50% khung nhìn (chừa trống bên phải)
+      let ns = Math.max(0, Math.min(panStart.s + di, n - 1 - span + zoomOverhang(span)));
       setZoom(a, ns, ns + span);
     }
   });
@@ -1051,7 +1062,8 @@ function bindChartHover() {
     const x = e.clientX - rect.left;
     const [zs, ze] = zoomRange(a);
     const frac = (x - PAD.l) / (rect.width - PAD.l - PAD.r);
-    const idx = Math.max(zs, Math.min(ze, zs + Math.round(frac * (ze - zs))));
+    // kẹp thêm về nến cuối có dữ liệu — vùng nhìn có thể chứa khoảng trống bên phải
+    const idx = Math.min(a.closes.length - 1, Math.max(zs, Math.min(ze, zs + Math.round(frac * (ze - zs)))));
     if (idx !== hoverIdx) {
       hoverIdx = idx;
       drawPriceChart(a);
@@ -1958,11 +1970,13 @@ function bindEvents() {
 
   $('collapseBtn').addEventListener('click', () => {
     const collapsed = document.querySelector('.layout').classList.toggle('collapsed');
-    $('toolbar').classList.toggle('hidden', collapsed);
+    // thu gọn bảng thì tạm ẩn toolbar; mở lại thì theo lựa chọn đã lưu của người dùng
+    if (collapsed) $('toolbar').classList.add('hidden'); else applyToolbarPref();
   });
 
   $('toolbarToggle').addEventListener('click', () => {
-    $('toolbar').classList.toggle('hidden');
+    const hidden = $('toolbar').classList.toggle('hidden');
+    localStorage.setItem('toolbarHidden', hidden ? '1' : '0');
   });
 
   // Bấm vào ô trên bản đồ nhiệt → chọn coin
