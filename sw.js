@@ -1,7 +1,7 @@
 /* Service worker: cache app shell để chạy offline + giữ dữ liệu API lần cuối */
 'use strict';
 
-const SHELL_CACHE = 'coins-shell-v3';
+const SHELL_CACHE = 'coins-shell-v4';
 const API_CACHE = 'coins-api-v1';
 const SHELL = [
   './',
