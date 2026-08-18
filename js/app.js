@@ -1386,10 +1386,17 @@ async function signedFetch(path, params = {}, method = 'GET') {
 async function loadBalances(sym) {
   const base = sym.slice(0, -4);
   const acc = await signedFetch('/api/v3/account', { omitZeroBalances: 'true' });
-  const out = { USDT: 0, [base]: 0 };
+  // Chỉ `free` của ví SPOT mới đặt lệnh được. Tiền hay "biến mất" vào:
+  //  - locked: đang nằm trong lệnh mở chưa khớp
+  //  - LDxxx:  Binance Flexible Earn (nhiều tài khoản bật tự động chuyển USDT vào Earn)
+  // Đọc cả hai để hiển thị cho người dùng biết tiền đang ở đâu thay vì chỉ thấy 0.
+  const out = { USDT: 0, [base]: 0, lockedQuote: 0, lockedBase: 0, earnQuote: 0, earnBase: 0 };
   for (const b of acc.balances || []) {
-    if (b.asset === 'USDT') out.USDT = parseFloat(b.free);
-    if (b.asset === base) out[base] = parseFloat(b.free);
+    const free = parseFloat(b.free) || 0, locked = parseFloat(b.locked) || 0;
+    if (b.asset === 'USDT') { out.USDT = free; out.lockedQuote = locked; }
+    else if (b.asset === base) { out[base] = free; out.lockedBase = locked; }
+    else if (b.asset === 'LDUSDT') out.earnQuote = free + locked;
+    else if (b.asset === 'LD' + base) out.earnBase = free + locked;
   }
   trade.balances = out;
   return out;
@@ -1482,7 +1489,16 @@ async function refreshBalances(force = false) {
     if (state.selected !== sym) return; // người dùng đã chọn coin khác
     // Làm tròn XUỐNG khi hiển thị — nếu làm tròn lên, gõ đúng số hiển thị sẽ vượt
     // số dư thật và Binance từ chối lệnh (-2010 insufficient balance)
-    $('tradeBalances').textContent = `Khả dụng: ${floorTo(b.USDT, 2).toLocaleString('en-US', { maximumFractionDigits: 2 })} USDT · ${floorTo(b[base], 8).toLocaleString('en-US', { maximumFractionDigits: 8 })} ${base}`;
+    let txt = `Khả dụng (Spot): ${floorTo(b.USDT, 2).toLocaleString('en-US', { maximumFractionDigits: 2 })} USDT · ${floorTo(b[base], 8).toLocaleString('en-US', { maximumFractionDigits: 8 })} ${base}`;
+    const stuck = [];
+    if (b.lockedQuote > 0.01 || b.lockedBase > 0) {
+      stuck.push(`khóa trong lệnh mở: ${floorTo(b.lockedQuote, 2)} USDT · ${floorTo(b.lockedBase, 8)} ${base}`);
+    }
+    if (b.earnQuote > 0.01 || b.earnBase > 0) {
+      stuck.push(`Binance Earn: ${floorTo(b.earnQuote, 2)} USDT · ${floorTo(b.earnBase, 8)} ${base}`);
+    }
+    if (stuck.length) txt += `\n⚠ Không dùng được cho lệnh spot — ${stuck.join(' · ')}. Rút về ví Spot trên Binance để giao dịch.`;
+    $('tradeBalances').textContent = txt;
   } catch (e) {
     $('tradeBalances').textContent = 'Không tải được số dư: ' + e.message;
   }
