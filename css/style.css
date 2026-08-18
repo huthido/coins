@@ -453,20 +453,35 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
 .api-status.err { color: var(--critical); }
 .api-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
-/* ==== Mobile ==== */
+/* ==== Mobile: cố định chiều cao视viewport, chia đôi danh sách / chi tiết ==== */
 @media (max-width: 720px) {
-  body { font-size: 13px; }
-  .topbar { padding: 1px; gap: 8px; }
+  html, body { height: 100%; }
+  body {
+    font-size: 13px;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .topbar { padding: 1px; gap: 8px; flex-shrink: 0; }
   .brand .sub { display: none; }
   .topbar-right { gap: 8px; }
   .clock { display: none; }
-  .controls { padding: 1px; gap: 8px; }
+  .controls { padding: 1px; gap: 8px; flex-shrink: 0; }
+  .market-bar { flex-shrink: 0; }
   #searchBox { flex: 1 1 130px; width: auto; min-width: 0; }
   .seg { flex: 1 1 100%; }
   .seg button { flex: 1; padding: 8px 4px; }
   #filterSel, #sortSel, #assetSel { flex: 1 1 45%; min-width: 0; }
   .status-pill { margin-left: 0; flex-basis: 100%; }
-  .layout { grid-template-columns: 1fr; gap: 1px; padding: 0 1px 1px; }
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 1px; padding: 0 1px 1px;
+    flex: 1; min-height: 0;
+  }
+  .panel { min-height: 0; height: 100%; }
+  .table-panel { display: flex; flex-direction: column; }
+  .table-scroll { flex: 1; overflow-y: auto; scrollbar-width: thin; }
+  .layout .detail-panel { overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; }
+  .splitter { display: none; }
   thead th, tbody td { padding: 1px; }
   /* Ẩn cột phụ trên màn hình hẹp: KL 24h (5), RSI (6), Xu hướng (7) */
   #coinTable th:nth-child(5), #coinTable td:nth-child(5),
@@ -479,7 +494,7 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
   .chart-holder canvas { height: 200px; }
   .rsi-holder canvas { height: 76px; }
   .ind-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
-  .disclaimer { margin: 0 1px 1px; }
+  .disclaimer { flex-shrink: 0; margin: 0 1px 1px; }
 }
 /* Điện thoại ngang nhỏ: bảng thu gọn thêm */
 @media (max-width: 1080px) and (orientation: landscape) and (max-height: 420px) {
