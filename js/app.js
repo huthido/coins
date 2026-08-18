@@ -717,6 +717,32 @@ function drawPriceChart(a) {
     drawLine(ctx, a.closes, X, Y, cssVar('--series-1'), s, e);
   }
 
+  // Đường giá hiện tại: kẻ ngang nét đứt qua cả biểu đồ + nhãn giá nổi ở trục phải.
+  // Ưu tiên giá ticker (làm mới mỗi 30s), rơi về giá đóng nến cuối nếu chưa có ticker.
+  const tk = state.tickers.find(x => x.symbol === state.selected);
+  const cur = tk && isFinite(tk.price) ? tk.price : a.closes[n - 1];
+  if (cur != null && isFinite(cur) && cur >= min && cur <= max) {
+    const y = Math.round(Y(cur)) + 0.5;
+    const lastOpen = a.opens ? a.opens[n - 1] : a.closes[n - 2];
+    const col = lastOpen != null && cur < lastOpen ? cssVar('--critical') : cssVar('--good');
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(w - PAD.r, y); ctx.stroke();
+    ctx.setLineDash([]);
+    const label = fmtUsd(cur);
+    ctx.font = '11px system-ui, sans-serif';
+    const tw = ctx.measureText(label).width;
+    const bx = w - PAD.r + 2;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(bx, y - 8, tw + 8, 16, 3); else ctx.rect(bx, y - 8, tw + 8, 16);
+    ctx.fill();
+    ctx.fillStyle = cssVar('--surface-1');
+    ctx.textAlign = 'left';
+    ctx.fillText(label, bx + 4, y + 3.5);
+  }
+
   // crosshair
   if (hoverIdx != null && hoverIdx >= s && hoverIdx <= e) {
     const x = Math.round(X(hoverIdx)) + 0.5;
@@ -872,9 +898,11 @@ function bindChartZoom() {
     setZoom(a, ns, ns + newSpan);
   }, { passive: false });
 
-  // Kéo để di chuyển (pan) + pinch 2 ngón để zoom
+  // Kéo NGANG để di chuyển (pan) + pinch 2 ngón để zoom.
+  // Cảm ứng: chỉ bắt đầu pan khi cử chỉ rõ ràng là ngang (≥8px và ngang > dọc) —
+  // vuốt dọc được nhường cho trình duyệt cuộn trang (touch-action: pan-y).
   const pts = new Map(); // pointerId -> clientX
-  let panStart = null;   // {x, s, e}
+  let panStart = null;   // {x, y, s, e, active}
   let pinchStart = null; // {dist, s, e, midFrac}
 
   canvas.addEventListener('pointerdown', (ev) => {
@@ -884,7 +912,7 @@ function bindChartZoom() {
     canvas.setPointerCapture(ev.pointerId);
     const [s, e] = zoomRange(a);
     if (pts.size === 1) {
-      panStart = { x: ev.clientX, s, e };
+      panStart = { x: ev.clientX, y: ev.clientY, s, e, active: ev.pointerType !== 'touch' };
       pinchStart = null;
     } else if (pts.size === 2) {
       const [x1, x2] = [...pts.values()];
@@ -915,6 +943,13 @@ function bindChartZoom() {
       ns = Math.max(0, Math.min(ns, n - 1 - newSpan));
       setZoom(a, ns, ns + newSpan);
     } else if (panStart && pts.size === 1) {
+      if (!panStart.active) {
+        // Chưa rõ ý định: ngang đủ lớn mới nhận pan, còn vuốt dọc thì nhường cuộn trang
+        const dx = Math.abs(ev.clientX - panStart.x);
+        const dy = Math.abs(ev.clientY - panStart.y);
+        if (dx < 8 || dx <= dy) return;
+        panStart.active = true;
+      }
       const span = panStart.e - panStart.s;
       if (span >= n - 1) return; // chưa zoom thì không cần pan
       const di = Math.round(((panStart.x - ev.clientX) / plotW) * span);
@@ -922,6 +957,12 @@ function bindChartZoom() {
       setZoom(a, ns, ns + span);
     }
   });
+
+  // 2 ngón trên biểu đồ = pinch zoom của chart: chặn trình duyệt cuộn/zoom trang
+  // (touch-action: pan-y cho phép cuộn 1 ngón, nhưng cử chỉ 2 ngón phải giữ lại cho chart)
+  canvas.addEventListener('touchmove', (ev) => {
+    if (ev.touches.length >= 2) ev.preventDefault();
+  }, { passive: false });
 
   const endPointer = (ev) => {
     pts.delete(ev.pointerId);
@@ -936,44 +977,62 @@ function bindChartZoom() {
   $('zoomReset').addEventListener('click', resetZoom);
 }
 
-/* ==== Thanh kéo chia đôi màn hình (màn hình lớn) ==== */
+/* ==== Thanh kéo chia màn hình ====
+ * Màn lớn: kéo NGANG chỉnh độ rộng hai cột (--split).
+ * Mobile ≤720px: kéo DỌC chỉnh tỉ lệ bảng coin / panel biểu đồ (--vsplit).
+ * Hai giá trị lưu riêng nên xoay ngang/dọc hay đổi thiết bị không đè nhau. */
 
 function initSplitter() {
   const layout = document.querySelector('.layout');
   const sp = $('splitter');
   if (!layout || !sp) return;
 
-  const saved = parseFloat(localStorage.getItem('splitPct'));
-  if (saved >= 30 && saved <= 72) layout.style.setProperty('--split', saved + '%');
+  const mqMobile = window.matchMedia('(max-width: 720px)'); // khớp breakpoint CSS của .layout dọc
+  const vertical = () => mqMobile.matches;
+
+  const savedH = parseFloat(localStorage.getItem('splitPct'));
+  if (savedH >= 30 && savedH <= 72) layout.style.setProperty('--split', savedH + '%');
+  const savedV = parseFloat(localStorage.getItem('splitPctV'));
+  if (savedV >= 18 && savedV <= 82) layout.style.setProperty('--vsplit', savedV + '%');
 
   const pctFromEvent = (e) => {
     const r = layout.getBoundingClientRect();
-    return Math.max(30, Math.min(72, ((e.clientX - r.left) / r.width) * 100));
+    return vertical()
+      ? Math.max(18, Math.min(82, ((e.clientY - r.top) / r.height) * 100))
+      : Math.max(30, Math.min(72, ((e.clientX - r.left) / r.width) * 100));
   };
 
   let dragging = false;
+  const endDrag = () => {
+    dragging = false;
+    sp.classList.remove('dragging');
+    layout.classList.remove('no-anim');
+    document.body.style.userSelect = '';
+  };
   sp.addEventListener('pointerdown', (e) => {
     dragging = true;
     sp.classList.add('dragging');
+    layout.classList.add('no-anim'); // tắt transition grid-rows để kéo theo ngón tay tức thì
     sp.setPointerCapture(e.pointerId);
     document.body.style.userSelect = 'none';
   });
   sp.addEventListener('pointermove', (e) => {
     if (!dragging) return;
-    layout.style.setProperty('--split', pctFromEvent(e) + '%');
+    layout.style.setProperty(vertical() ? '--vsplit' : '--split', pctFromEvent(e) + '%');
     requestAnimationFrame(redrawCharts);
   });
   sp.addEventListener('pointerup', (e) => {
     if (!dragging) return;
-    dragging = false;
-    sp.classList.remove('dragging');
-    document.body.style.userSelect = '';
-    localStorage.setItem('splitPct', pctFromEvent(e).toFixed(1));
+    localStorage.setItem(vertical() ? 'splitPctV' : 'splitPct', pctFromEvent(e).toFixed(1));
+    endDrag();
     redrawCharts();
   });
+  sp.addEventListener('pointercancel', () => { if (dragging) { endDrag(); redrawCharts(); } });
   sp.addEventListener('dblclick', () => {
     layout.style.removeProperty('--split');
+    layout.style.removeProperty('--vsplit');
     localStorage.removeItem('splitPct');
+    localStorage.removeItem('splitPctV');
     redrawCharts();
   });
 }

@@ -314,7 +314,9 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
 .chart-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .chart-tools { display: flex; align-items: center; gap: 6px; }
 .chart-mode button { padding: 2px 9px; font-size: 11.5px; }
-#priceChart { touch-action: none; cursor: crosshair; } /* cho phép kéo/pinch zoom */
+/* pan-y: vuốt DỌC trên biểu đồ vẫn cuộn trang bình thường (mobile);
+ * kéo NGANG để pan và pinch 2 ngón để zoom do JS xử lý */
+#priceChart { touch-action: pan-y; cursor: crosshair; }
 .vol-holder canvas { height: 56px; }
 .chart-legend { display: flex; gap: 14px; font-size: 11px; color: var(--ink-2); margin-bottom: 5px; flex-wrap: wrap; }
 .chart-legend .key { display: inline-flex; align-items: center; gap: 5px; }
@@ -489,22 +491,30 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
   .collapse-btn { display: inline-block; }
   .layout {
     grid-template-columns: 1fr;
-    grid-template-rows: 1fr 1fr;
+    /* Hàng giữa 16px là thanh kéo dọc; --vsplit do người dùng kéo đặt (mặc định chia đôi) */
+    grid-template-rows: minmax(90px, var(--vsplit, 50%)) 16px minmax(120px, 1fr);
     gap: 1px; padding: 0 1px 1px;
     flex: 1; min-height: 0;
     transition: grid-template-rows .25s ease;
   }
+  .layout.no-anim { transition: none; } /* tắt hiệu ứng khi đang kéo cho mượt */
   .layout.collapsed {
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
   }
   .layout.collapsed .table-scroll,
   .layout.collapsed .heat-holder { display: none; }
   .layout.collapsed .table-head { border-bottom: none; }
+  .layout.collapsed .splitter { display: none; }
   .panel { min-height: 0; height: 100%; }
   .table-panel { display: flex; flex-direction: column; }
   .table-scroll { flex: 1; overflow-y: auto; scrollbar-width: thin; }
   .layout .detail-panel { overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; }
-  .splitter { display: none; }
+  /* Thanh kéo NGANG giữa bảng coin và panel biểu đồ — kéo lên/xuống để chỉnh tỉ lệ */
+  .splitter { display: block; cursor: row-resize; width: auto; height: auto; align-self: stretch; }
+  .splitter::before {
+    left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 48px; height: 4px;
+  }
   thead th, tbody td { padding: 1px; }
   /* Ẩn cột phụ trên màn hình hẹp: KL 24h (5), RSI (6), Dao động (7), Xu hướng (8) */
   #coinTable th:nth-child(5), #coinTable td:nth-child(5),
