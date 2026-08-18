@@ -515,7 +515,16 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
 
 /* ==== Footer ==== */
 .disclaimer {
-  margin: 0 1px 1px; padding: 1px 6px;
+  margin: 0 1px 1px; padding: 0 6px;
   border: 1px solid var(--border); border-radius: 9px;
   font-size: 11.5px; color: var(--ink-2); background: var(--surface-1);
+  overflow: hidden; white-space: nowrap; line-height: 22px;
+}
+.marquee {
+  display: inline-block;
+  animation: marquee 28s linear infinite;
+}
+@keyframes marquee {
+  0%   { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
 }
