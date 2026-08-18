@@ -540,8 +540,8 @@ function renderDetail(sym) {
 
 function renderLegend() {
   const keys = state.chartMode === 'candle'
-    ? [['--good', 'Nến tăng'], ['--critical', 'Nến giảm'], ['--series-2', 'EMA 20'], ['--series-3', 'EMA 50']]
-    : [['--series-1', 'Giá đóng nến'], ['--series-2', 'EMA 20'], ['--series-3', 'EMA 50']];
+    ? [['--good', 'Tăng'], ['--critical', 'Giảm'], ['--series-2', 'EMA20'], ['--series-3', 'EMA50']]
+    : [['--series-1', 'Giá'], ['--series-2', 'EMA20'], ['--series-3', 'EMA50']];
   $('priceLegend').innerHTML = keys
     .map(([v, label]) => `<span class="key"><span class="swatch" style="background:var(${v})"></span>${label}</span>`).join('');
 }

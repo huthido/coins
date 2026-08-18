@@ -311,16 +311,16 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
 
 /* ==== Charts ==== */
 .chart-wrap { margin-top: 10px; }
-.chart-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-.chart-tools { display: flex; align-items: center; gap: 6px; }
-.chart-mode button { padding: 2px 9px; font-size: 11.5px; }
+.chart-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+.chart-tools { display: flex; align-items: center; gap: 4px; }
+.chart-mode button { padding: 1px 7px; font-size: 11px; }
 /* pan-y: vuốt DỌC trên biểu đồ vẫn cuộn trang bình thường (mobile);
  * kéo NGANG để pan và pinch 2 ngón để zoom do JS xử lý */
 #priceChart { touch-action: pan-y; cursor: crosshair; }
 .vol-holder canvas { height: 56px; }
-.chart-legend { display: flex; gap: 14px; font-size: 11px; color: var(--ink-2); margin-bottom: 5px; flex-wrap: wrap; }
-.chart-legend .key { display: inline-flex; align-items: center; gap: 5px; }
-.chart-legend .swatch { width: 14px; height: 2px; border-radius: 1px; display: inline-block; }
+.chart-legend { display: flex; gap: 8px; font-size: 10px; color: var(--ink-2); flex-wrap: wrap; }
+.chart-legend .key { display: inline-flex; align-items: center; gap: 4px; }
+.chart-legend .swatch { width: 10px; height: 2px; border-radius: 1px; display: inline-block; }
 .chart-holder { position: relative; }
 .chart-holder canvas { display: block; width: 100%; height: 210px; }
 .rsi-holder canvas { height: 78px; }
@@ -370,7 +370,7 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
 }
 .trade-unit { font-size: 12px; color: var(--ink-muted); min-width: 38px; }
 .btn-sm { padding: 3px 8px; font-size: 12px; }
-#zoomReset { white-space: nowrap; } /* "⟲ Toàn bộ" không được xuống dòng khi chật chỗ */
+#zoomReset { white-space: nowrap; padding: 1px 7px; font-size: 11px; } /* gọn + không xuống dòng */
 .trade-submit { margin-top: 8px; width: 100%; font-weight: 600; }
 .trade-submit.buy { color: var(--good-text); border-color: var(--good); }
 .trade-submit.sell { color: var(--critical); border-color: var(--critical); }
