@@ -1412,6 +1412,25 @@ function roundToStep(qty, step) {
   return parseFloat(rounded.toFixed(decimals));
 }
 
+const floorTo = (v, d) => Math.floor((v || 0) * 10 ** d) / 10 ** d;
+
+// Điền toàn bộ số dư khả dụng vào ô số lượng (làm tròn xuống theo đúng ràng buộc sàn)
+async function fillMaxAmount() {
+  const sym = state.selected;
+  if (!sym || !getTradeCfg()) return;
+  await refreshBalances();
+  const b = trade.balances || {};
+  let v;
+  if (trade.side === 'BUY') {
+    v = floorTo(b.USDT, 2);
+  } else {
+    const f = await getSymbolFilter(sym).catch(() => ({ stepSize: 0 }));
+    v = roundToStep(b[sym.slice(0, -4)] || 0, f.stepSize);
+  }
+  $('tradeAmount').value = v > 0 ? String(v) : '';
+  resetConfirm();
+}
+
 function resetConfirm() {
   trade.confirming = false;
   clearTimeout(trade.confirmTimer);
@@ -1461,7 +1480,9 @@ async function refreshBalances(force = false) {
   try {
     const b = await loadBalances(sym);
     if (state.selected !== sym) return; // người dùng đã chọn coin khác
-    $('tradeBalances').textContent = `Khả dụng: ${b.USDT.toLocaleString('en-US', { maximumFractionDigits: 2 })} USDT · ${b[base].toLocaleString('en-US', { maximumFractionDigits: 8 })} ${base}`;
+    // Làm tròn XUỐNG khi hiển thị — nếu làm tròn lên, gõ đúng số hiển thị sẽ vượt
+    // số dư thật và Binance từ chối lệnh (-2010 insufficient balance)
+    $('tradeBalances').textContent = `Khả dụng: ${floorTo(b.USDT, 2).toLocaleString('en-US', { maximumFractionDigits: 2 })} USDT · ${floorTo(b[base], 8).toLocaleString('en-US', { maximumFractionDigits: 8 })} ${base}`;
   } catch (e) {
     $('tradeBalances').textContent = 'Không tải được số dư: ' + e.message;
   }
@@ -1475,6 +1496,20 @@ async function submitTrade() {
   const out = $('tradeResult');
   out.className = 'trade-result';
   if (!(amt > 0)) { out.textContent = 'Nhập số lượng hợp lệ trước.'; return; }
+
+  // Chặn sớm khi vượt số dư khả dụng — khỏi gửi lệnh chắc chắn bị Binance từ chối (-2010)
+  const bal = trade.balances || {};
+  const base = sym.slice(0, -4);
+  if (trade.side === 'BUY' && bal.USDT != null && amt > bal.USDT + 1e-9) {
+    out.className = 'trade-result err';
+    out.textContent = `✖ Vượt số dư: chỉ có ${floorTo(bal.USDT, 2)} USDT khả dụng. Bấm "Tối đa" để điền đúng mức.`;
+    return;
+  }
+  if (trade.side === 'SELL' && bal[base] != null && amt > bal[base] + 1e-9) {
+    out.className = 'trade-result err';
+    out.textContent = `✖ Vượt số dư: chỉ có ${floorTo(bal[base], 8)} ${base} khả dụng. Bấm "Tối đa" để điền đúng mức.`;
+    return;
+  }
 
   // Bước 1: yêu cầu xác nhận; tự hủy sau 6 giây
   if (!trade.confirming) {
@@ -1509,7 +1544,13 @@ async function submitTrade() {
     refreshBalances(true);
   } catch (e) {
     out.className = 'trade-result err';
-    out.textContent = '✖ Lệnh thất bại: ' + e.message;
+    let msg = e.message;
+    if (/insufficient balance/i.test(msg)) {
+      msg = 'Số dư khả dụng không đủ cho lệnh này (Binance -2010). Phần đang nằm trong lệnh mở, ' +
+        'Binance Earn hoặc ví Funding không dùng được cho lệnh spot — bấm "Tối đa" để điền đúng mức khả dụng.';
+      refreshBalances(true); // cập nhật lại số dư hiển thị cho đúng thực tế
+    }
+    out.textContent = '✖ Lệnh thất bại: ' + msg;
   } finally {
     btn.disabled = false;
   }
@@ -1649,6 +1690,7 @@ function bindTradeEvents() {
   });
 
   $('tradeAmount').addEventListener('input', resetConfirm);
+  $('tradeMax').addEventListener('click', fillMaxAmount);
   $('tradeSubmit').addEventListener('click', submitTrade);
 }
 
