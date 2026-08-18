@@ -492,6 +492,7 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
   }
   .layout.collapsed .table-scroll,
   .layout.collapsed .heat-holder { display: none; }
+  .layout.collapsed .table-head { border-bottom: none; }
   .panel { min-height: 0; height: 100%; }
   .table-panel { display: flex; flex-direction: column; }
   .table-scroll { flex: 1; overflow-y: auto; scrollbar-width: thin; }
