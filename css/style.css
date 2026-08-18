@@ -280,6 +280,7 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
 .badge-hold .dot { background: var(--ink-muted); }
 .badge-strong { border-width: 2px; }
 .trend-cell { font-size: 12px; color: var(--ink-2); }
+.swing-cell { font-size: 12px; color: var(--ink-2); white-space: nowrap; }
 .momo {
   display: inline-block; font-size: 10px; font-weight: 700;
   padding: 1px 6px; border-radius: 999px; margin-left: 5px;
@@ -505,10 +506,11 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
   .layout .detail-panel { overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; }
   .splitter { display: none; }
   thead th, tbody td { padding: 1px; }
-  /* Ẩn cột phụ trên màn hình hẹp: KL 24h (5), RSI (6), Xu hướng (7) */
+  /* Ẩn cột phụ trên màn hình hẹp: KL 24h (5), RSI (6), Dao động (7), Xu hướng (8) */
   #coinTable th:nth-child(5), #coinTable td:nth-child(5),
   #coinTable th:nth-child(6), #coinTable td:nth-child(6),
-  #coinTable th:nth-child(7), #coinTable td:nth-child(7) { display: none; }
+  #coinTable th:nth-child(7), #coinTable td:nth-child(7),
+  #coinTable th:nth-child(8), #coinTable td:nth-child(8) { display: none; }
   .badge { font-size: 11px; padding: 2px 7px; }
   .momo-sm { display: inline-block; }
   .detail-price .big { font-size: 20px; }

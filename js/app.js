@@ -24,7 +24,7 @@ const state = {
   analysis: new Map(),  // symbol -> {score, verdict, reasons, rsi, ema20, ema50, macd, closes, times, klineIv}
   selected: null,
   search: '',
-  sort: 'strength',   // strength | name | price | change | volume | rsi | score
+  sort: 'strength',   // strength | name | price | change | volume | rsi | swing | score
   sortDir: 'desc',
   filter: 'all',
   assetType: 'all',
@@ -249,6 +249,11 @@ async function runAnalysis() {
   $('scanStatus').textContent = `Đã phân tích ${state.analysis.size} coin · khung ${IV_LABEL[state.interval] || state.interval}`;
   renderTable();
   if (state.selected) renderDetail(state.selected);
+  // Nạp danh mục đang giữ (nếu đã kết nối API) để quy tắc ưu tiên mua/bán có dữ liệu,
+  // và đồng bộ lên server push cho thông báo nền cũng lọc theo danh mục
+  try {
+    if (getTradeCfg()) { await loadHoldings(); syncPushHoldings(); }
+  } catch { /* chưa kết nối API hoặc lỗi mạng — cảnh báo dùng hành vi mặc định */ }
   checkSignalAlerts();
 }
 
@@ -390,6 +395,7 @@ function visibleTickers() {
       case 'change':   return t.changePct;
       case 'volume':   return t.quoteVolume;
       case 'rsi':      return a && a.rsi != null ? a.rsi : null;
+      case 'swing':    return a && a.swing ? a.swing.count * a.swing.avgPct : null;
       case 'score':    return a ? a.score : null;
       default:         return t.quoteVolume;
     }
@@ -431,6 +437,7 @@ function renderTable() {
       <td class="num ${chgCls}">${fmtPct(t.changePct)}</td>
       <td class="num dim">${fmtCompactUsd(t.quoteVolume)}</td>
       <td class="num">${a && a.rsi != null ? a.rsi.toFixed(0) : '—'}</td>
+      <td class="num swing-cell">${a && a.swing && a.swing.count ? `±${a.swing.avgPct.toFixed(0)}%·${a.swing.count}n` : '—'}</td>
       <td class="trend-cell">${a ? a.trend : '—'}${a && a.momoUp ? ' <span class="momo momo-up">MỚI ↗</span>' : ''}${a && a.momoDown ? ' <span class="momo momo-down">MỚI ↘</span>' : ''}</td>
       <td>${badgeHtml(a)}${a && a.momoUp ? ' <span class="momo momo-up momo-sm">↗</span>' : ''}${a && a.momoDown ? ' <span class="momo momo-down momo-sm">↘</span>' : ''}</td>
     </tr>`;
@@ -445,7 +452,7 @@ function renderTable() {
       : state.filter !== 'all' && !state.scanning
         ? 'Hiện chưa có coin nào khớp bộ lọc này. Đà thị trường thay đổi liên tục — hệ thống sẽ tự quét lại mỗi 5 phút.'
         : 'Không tìm thấy coin phù hợp.';
-  $('coinRows').innerHTML = rows || `<tr><td colspan="8" class="loading-cell">${emptyMsg}</td></tr>`;
+  $('coinRows').innerHTML = rows || `<tr><td colspan="9" class="loading-cell">${emptyMsg}</td></tr>`;
   if (state.view === 'heat') drawHeatmap();
 }
 
@@ -512,6 +519,8 @@ function renderDetail(sym) {
       ['EMA 20', a.ema20[n - 1] != null ? fmtUsd(a.ema20[n - 1]) : '—'],
       ['EMA 50', a.ema50[n - 1] != null ? fmtUsd(a.ema50[n - 1]) : '—'],
       ['MACD hist', a.macdObj.hist[n - 1] != null ? a.macdObj.hist[n - 1].toPrecision(3) : '—'],
+      ['Vị trí giá (90 nến)', a.pricePos != null ? (a.pricePos * 100).toFixed(0) + '%' + (a.pricePos <= 0.25 ? ' · vùng đáy' : a.pricePos >= 0.75 ? ' · vùng đỉnh' : '') : '—'],
+      ['Dao động lịch sử', a.swing && a.swing.count ? `${a.swing.count} nhịp · ±${a.swing.avgPct.toFixed(0)}%/nhịp` : 'ít nhịp lớn'],
       ['Bollinger %B', a.boll ? (a.boll.pctB * 100).toFixed(0) + '%' + (a.boll.squeeze ? ' · squeeze' : '') : '—'],
       ['Mua chủ động', a.takerRatio != null ? (a.takerRatio * 100).toFixed(0) + '%' : '—'],
       ['Cao 24h', fmtUsd(t.high)],
@@ -1052,9 +1061,11 @@ function showToast(title, body, kind, sym) {
 
 function notifySignal(sym, a) {
   const isBuy = a.cls.startsWith('buy');
+  const held = !!(holdings.set && holdings.set.has(sym.slice(0, -4)));
   const t = state.tickers.find(x => x.symbol === sym);
-  const title = (isBuy ? '🟢 MUA MẠNH: ' : '🔴 BÁN MẠNH: ') + sym.slice(0, -4);
-  const body = `Điểm ${a.score > 0 ? '+' : ''}${a.score} · ${t ? fmtUsd(t.price) + ' USDT' : ''} · khung ${IV_LABEL[a.klineIv || state.interval] || a.klineIv}`;
+  const title = (isBuy ? '🟢 ' : '🔴 ') + a.verdict + ': ' + sym.slice(0, -4) + (held ? ' 💼' : '');
+  const body = (held ? `Coin đang có trong ví — ${isBuy ? 'cân nhắc kỹ nếu mua thêm' : 'ưu tiên xem xét chốt lời/cắt lỗ'} · ` : '') +
+    `Điểm ${a.score > 0 ? '+' : ''}${a.score} · ${t ? fmtUsd(t.price) + ' USDT' : ''} · khung ${IV_LABEL[a.klineIv || state.interval] || a.klineIv}`;
   showToast(title, body, isBuy ? 'buy' : 'sell', sym);
   if (alerts.enabled && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     try {
@@ -1076,13 +1087,15 @@ function checkSignalAlerts() {
   for (const [sym, a] of state.analysis) {
     const prevCls = alerts.prev.get(sym);
     alerts.prev.set(sym, a.cls);
-    if (!a.cls.includes('strong')) continue;
-    if (a.cls.startsWith('buy')) strongBuy++; else strongSell++;
+    if (a.cls.includes('strong')) { if (a.cls.startsWith('buy')) strongBuy++; else strongSell++; }
+    // Quy tắc chung từ engine: coin đang giữ ưu tiên BÁN, coin chưa giữ ưu tiên MUA
+    const pri = alertPriority(a.cls, holdings.set ? holdings.set.has(sym.slice(0, -4)) : null, state.watch.has(sym));
+    if (!pri) continue;
     if (prevCls === a.cls) continue; // vẫn như lần quét trước — không báo lại
     const key = sym + '|' + a.cls;
     if (Date.now() - (alerts.lastSent.get(key) || 0) < ALERT_COOLDOWN_MS) continue;
     alerts.lastSent.set(key, Date.now());
-    events.push({ sym, a });
+    events.push({ sym, a, pri });
   }
   if (alerts.firstScan) {
     // Lần quét đầu sau khi mở app: chỉ tóm tắt, tránh dội một loạt thông báo
@@ -1092,8 +1105,10 @@ function checkSignalAlerts() {
     }
     return;
   }
+  // Quan trọng trước: BÁN coin đang giữ > MUA coin chưa có > BÁN coin ★ > MUA thêm coin đang giữ
+  events.sort((x, y) => y.pri - x.pri);
   events.slice(0, 5).forEach(ev => notifySignal(ev.sym, ev.a));
-  if (events.length > 5) showToast('Tín hiệu mạnh', `…và ${events.length - 5} coin khác vừa có tín hiệu mạnh`, '', null);
+  if (events.length > 5) showToast('Tín hiệu mạnh', `…và ${events.length - 5} coin khác vừa có tín hiệu`, '', null);
 }
 
 function updateAlertBtn() {
@@ -1130,6 +1145,27 @@ async function setupPush() {
   return r.ok ? 'ok' : 'no-server';
 }
 
+// Đồng bộ danh sách coin đang giữ lên server push — server sẽ lọc: thiết bị đang giữ coin
+// nhận cảnh báo BÁN (cả mức thường), thiết bị chưa giữ chỉ nhận MUA MẠNH cho coin đó
+let pushHoldingsSynced = '';
+async function syncPushHoldings() {
+  try {
+    if (!holdings.set || !('serviceWorker' in navigator)) return;
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (!sub) return;
+    const list = [...holdings.set].filter(b => b !== 'USDT').sort();
+    const key = list.join(',');
+    if (key === pushHoldingsSynced) return; // không đổi — khỏi gửi lại
+    const r = await fetch('push/prefs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: sub.endpoint, holdings: list }),
+    });
+    if (r.ok) pushHoldingsSynced = key;
+  } catch { /* server cũ chưa có /push/prefs hoặc offline — bỏ qua */ }
+}
+
 async function teardownPush() {
   try {
     const reg = await navigator.serviceWorker.ready;
@@ -1147,7 +1183,11 @@ async function teardownPush() {
 
 async function tryEnablePush() {
   const r = await setupPush().catch(() => 'error');
-  if (r === 'ok') showToast('🔔 Web Push đã bật', 'Bạn sẽ nhận cảnh báo tín hiệu mạnh (khung 1h) kể cả khi đóng trình duyệt.', 'buy', null);
+  if (r === 'ok') {
+    showToast('🔔 Web Push đã bật', 'Bạn sẽ nhận cảnh báo tín hiệu (khung 1 ngày) kể cả khi đóng trình duyệt — coin đang giữ ưu tiên báo BÁN, coin chưa có ưu tiên báo MUA.', 'buy', null);
+    pushHoldingsSynced = ''; // đăng ký mới → đồng bộ lại danh mục lên server
+    syncPushHoldings();
+  }
   else if (r === 'no-server') showToast('Web Push chưa khả dụng', 'Server hiện tại không có dịch vụ push — cần bản deploy Docker/Coolify mới nhất.', '', null);
   return r;
 }
@@ -1439,6 +1479,7 @@ async function loadHoldings(force = false) {
 async function applyHoldingFilter() {
   try {
     await loadHoldings();
+    syncPushHoldings();
   } catch {
     state.filter = 'all';
     $('filterSel').value = 'all';
@@ -1888,7 +1929,7 @@ async function init() {
     await loadTickers();
   } catch (err) {
     $('coinRows').innerHTML =
-      '<tr><td colspan="8" class="loading-cell">Không tải được dữ liệu từ Binance. Kiểm tra kết nối mạng rồi bấm "Làm mới".<br><span class="dim">' +
+      '<tr><td colspan="9" class="loading-cell">Không tải được dữ liệu từ Binance. Kiểm tra kết nối mạng rồi bấm "Làm mới".<br><span class="dim">' +
       esc(err) + '</span></td></tr>';
     return;
   }

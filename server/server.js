@@ -39,12 +39,17 @@ let subs = [];
 try { subs = JSON.parse(fs.readFileSync(subsFile, 'utf8')); } catch { subs = []; }
 const saveSubs = () => fs.writeFileSync(subsFile, JSON.stringify(subs));
 
-async function broadcast(payload) {
-  const body = JSON.stringify(payload);
+// Gửi payload tới các thiết bị; payloadFor(sub) trả về payload theo từng thiết bị
+// hoặc null để bỏ qua thiết bị đó. Trả về số thiết bị đã gửi.
+async function broadcast(payloadOrFn) {
   const dead = [];
+  let sent = 0;
   await Promise.all(subs.map(async (sub) => {
+    const payload = typeof payloadOrFn === 'function' ? payloadOrFn(sub) : payloadOrFn;
+    if (!payload) return;
     try {
-      await webpush.sendNotification(sub, body);
+      await webpush.sendNotification(sub, JSON.stringify(payload));
+      sent++;
     } catch (e) {
       if (e.statusCode === 404 || e.statusCode === 410) dead.push(sub.endpoint);
       else console.error('push lỗi:', e.statusCode || e.message);
@@ -55,6 +60,7 @@ async function broadcast(payload) {
     saveSubs();
     console.log(`Dọn ${dead.length} đăng ký hết hạn, còn ${subs.length}`);
   }
+  return sent;
 }
 
 /* ==== Vòng quét tín hiệu (khung 1 ngày, hợp lưu 1 tuần — như mặc định của app) ==== */
@@ -97,7 +103,10 @@ async function scan() {
         const sig = engine.buildSignal(engine.parseKlines(raw), rawH ? engine.parseKlines(rawH) : null, t);
         const prevCls = prev.get(t.symbol);
         prev.set(t.symbol, sig.cls);
-        if (!sig.cls.includes('strong') || prevCls === sig.cls) continue;
+        // Tín hiệu đáng chú ý: MẠNH (cả hai chiều) hoặc BÁN thường — BÁN thường chỉ gửi
+        // cho thiết bị đang giữ coin đó (bảo vệ vốn cần báo sớm, không đợi BÁN MẠNH)
+        const interesting = sig.cls.includes('strong') || sig.cls.startsWith('sell');
+        if (!interesting || prevCls === sig.cls) continue;
         const key = t.symbol + '|' + sig.cls;
         if (Date.now() - (lastSent.get(key) || 0) < COOLDOWN_MS) continue;
         lastSent.set(key, Date.now());
@@ -107,19 +116,27 @@ async function scan() {
 
     if (firstScan) {
       firstScan = false;
-      console.log(`Quét đầu: ${tickers.length} coin, ${events.length} tín hiệu mạnh (không push để tránh dội sau khi khởi động)`);
+      console.log(`Quét đầu: ${tickers.length} coin, ${events.length} tín hiệu đáng chú ý (không push để tránh dội sau khi khởi động)`);
       return;
     }
     for (const { t, sig } of events) {
       const isBuy = sig.cls.startsWith('buy');
-      const payload = {
-        title: (isBuy ? '🟢 MUA MẠNH: ' : '🔴 BÁN MẠNH: ') + t.base,
-        body: `Điểm ${sig.score > 0 ? '+' : ''}${sig.score} · ${fmtUsd(t.price)} USDT · khung 1 ngày`,
-        tag: 'coins-' + t.symbol,
-        sym: t.symbol,
-      };
-      console.log('PUSH:', payload.title, payload.body, `→ ${subs.length} thiết bị`);
-      await broadcast(payload);
+      // Quy tắc danh mục theo từng thiết bị (client đồng bộ qua /push/prefs), dùng chung
+      // engine.alertPriority với app web: đang giữ → nhận BÁN mọi mức + MUA MẠNH (nhãn 💼);
+      // chưa giữ → chỉ MUA MẠNH; chưa khai báo danh mục → hành vi cũ (mọi tín hiệu MẠNH)
+      const sent = await broadcast((sub) => {
+        const info = Array.isArray(sub.holdings);
+        const held = info && sub.holdings.includes(t.base);
+        if (!engine.alertPriority(sig.cls, info ? held : null, false)) return null;
+        return {
+          title: (isBuy ? '🟢 ' : '🔴 ') + sig.verdict + ': ' + t.base + (held ? ' 💼' : ''),
+          body: (held ? `Coin đang có trong ví — ${isBuy ? 'cân nhắc kỹ nếu mua thêm' : 'ưu tiên xem xét chốt lời/cắt lỗ'} · ` : '') +
+            `Điểm ${sig.score > 0 ? '+' : ''}${sig.score} · ${fmtUsd(t.price)} USDT · khung 1 ngày`,
+          tag: 'coins-' + t.symbol,
+          sym: t.symbol,
+        };
+      });
+      console.log(`PUSH: ${sig.verdict} ${t.base} (điểm ${sig.score}) → ${sent}/${subs.length} thiết bị`);
     }
   } catch (e) {
     console.error('scan lỗi:', e.message);
@@ -278,6 +295,25 @@ const server = http.createServer(async (req, res) => {
     } else {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: false }));
+    }
+    return;
+  }
+  if (p === '/push/prefs' && req.method === 'POST') {
+    // Client đồng bộ danh sách coin đang giữ để server lọc thông báo theo danh mục:
+    // đang giữ → ưu tiên cảnh báo BÁN, chưa giữ → chỉ cảnh báo MUA MẠNH
+    const body = await readBody(req);
+    const sub = body && body.endpoint ? subs.find(s => s.endpoint === body.endpoint) : null;
+    if (sub) {
+      sub.holdings = Array.isArray(body.holdings)
+        ? [...new Set(body.holdings.slice(0, 300).map(x => String(x).toUpperCase().slice(0, 20)))]
+        : [];
+      sub.holdingsAt = Date.now();
+      saveSubs();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, holdings: sub.holdings.length }));
+    } else {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, msg: 'Thiết bị chưa đăng ký push' }));
     }
     return;
   }

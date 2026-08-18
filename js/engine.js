@@ -34,13 +34,15 @@ function rsiSeries(closes, period = 14) {
     const d = closes[i] - closes[i - 1];
     if (d >= 0) gain += d; else loss -= d;
   }
+  // avgL = 0 và avgG = 0 (giá đứng yên) phải là 50 trung tính, không phải 100 quá mua
+  const rsiOf = (g, l) => (l === 0 ? (g === 0 ? 50 : 100) : 100 - 100 / (1 + g / l));
   let avgG = gain / period, avgL = loss / period;
-  out[period] = avgL === 0 ? 100 : 100 - 100 / (1 + avgG / avgL);
+  out[period] = rsiOf(avgG, avgL);
   for (let i = period + 1; i < closes.length; i++) {
     const d = closes[i] - closes[i - 1];
     avgG = (avgG * (period - 1) + Math.max(d, 0)) / period;
     avgL = (avgL * (period - 1) + Math.max(-d, 0)) / period;
-    out[i] = avgL === 0 ? 100 : 100 - 100 / (1 + avgG / avgL);
+    out[i] = rsiOf(avgG, avgL);
   }
   return out;
 }
@@ -162,19 +164,20 @@ function bollingerLast(closes, period = 20, k = 2) {
   return last;
 }
 
-// OBV (On-Balance Volume) — xác nhận xu hướng bằng dòng khối lượng
+// OBV (On-Balance Volume) — xác nhận xu hướng bằng dòng khối lượng.
+// Chuẩn hoá theo tổng khối lượng trong cửa sổ `look` → tỷ lệ mất cân bằng ròng trong [-1, 1]
+// (không phụ thuộc điểm bắt đầu của chuỗi dữ liệu như cách chia cho mốc OBV tích luỹ)
 function obvSlope(closes, volumes, look = 10) {
   const n = closes.length;
-  let obv = 0;
-  const series = [0];
-  for (let i = 1; i < n; i++) {
-    obv += closes[i] > closes[i - 1] ? volumes[i] : closes[i] < closes[i - 1] ? -volumes[i] : 0;
-    series.push(obv);
-  }
   if (n < look + 2) return 0;
-  const d = series[n - 1] - series[n - 1 - look];
-  const scale = Math.abs(series[n - 1 - look]) || 1;
-  return d / scale; // >0: dòng tiền vào, <0: dòng tiền ra
+  let d = 0, total = 0;
+  for (let i = n - look; i < n; i++) {
+    const v = volumes[i];
+    if (!Number.isFinite(v)) continue;
+    d += closes[i] > closes[i - 1] ? v : closes[i] < closes[i - 1] ? -v : 0;
+    total += v;
+  }
+  return total > 0 ? d / total : 0; // >0: dòng tiền vào, <0: dòng tiền ra
 }
 
 // Phân kỳ RSI ~40 nến gần nhất (đáy giá thấp hơn nhưng RSI cao hơn → phân kỳ tăng, và ngược lại)
@@ -195,6 +198,77 @@ function findDivergence(closes, rsiArr, lookback = 40) {
     if (closes[b] > closes[a] && rsiArr[a] != null && rsiArr[b] != null && rsiArr[b] < rsiArr[a] - 1 && rsiArr[b] > 55) bear = true;
   }
   return { bull, bear };
+}
+
+// Vị trí giá trong biên độ `lookback` nến gần nhất: 0 = sát đáy, 1 = sát đỉnh
+function pricePosition(highs, lows, last, lookback = 90) {
+  const n = lows.length;
+  const from = Math.max(0, n - lookback);
+  let lo = Infinity, hi = -Infinity;
+  for (let i = from; i < n; i++) {
+    if (lows[i] < lo) lo = lows[i];
+    if (highs[i] > hi) hi = highs[i];
+  }
+  if (!(hi > lo)) return 0.5;
+  return Math.min(1, Math.max(0, (last - lo) / (hi - lo)));
+}
+
+// Đếm tín hiệu động lượng ngắn hạn đang quay đầu tăng/giảm (0-4 mỗi chiều)
+// — dùng để xác nhận đảo chiều tại đáy/đỉnh trước khi đề xuất mua/bán
+function reversalTurn(closes, rsiArr, hist, stArr) {
+  const n = closes.length;
+  const r1 = rsiArr[n - 1], r3 = rsiArr[n - 4];
+  const h1 = hist[n - 1], h2 = hist[n - 2], h3 = hist[n - 3];
+  const rsiUp = r1 != null && r3 != null && r1 > r3 + 1;
+  const rsiDown = r1 != null && r3 != null && r1 < r3 - 1;
+  const histUp = h1 != null && h2 != null && h3 != null && h1 > h2 && h2 >= h3;
+  const histDown = h1 != null && h2 != null && h3 != null && h1 < h2 && h2 <= h3;
+  const priceUp = closes[n - 4] != null && closes[n - 1] > closes[n - 4];
+  const priceDown = closes[n - 4] != null && closes[n - 1] < closes[n - 4];
+  const stUp = stArr[n - 1] === 1, stDown = stArr[n - 1] === -1;
+  return {
+    up: (rsiUp ? 1 : 0) + (histUp ? 1 : 0) + (priceUp ? 1 : 0) + (stUp ? 1 : 0),
+    down: (rsiDown ? 1 : 0) + (histDown ? 1 : 0) + (priceDown ? 1 : 0) + (stDown ? 1 : 0),
+  };
+}
+
+// Thống kê nhịp dao động lịch sử (zigzag trên close, ngưỡng đảo chiều thích ứng theo ATR):
+// coin có "tỉ lệ tăng giảm giá cao" = nhiều nhịp tăng/giảm rộng → cơ hội mua đáy/bán đỉnh đáng giá.
+// Trả về: count (số nhịp hoàn chỉnh), avgPct (biên độ trung bình mỗi nhịp, %), thresholdPct (ngưỡng dùng, %)
+function swingStats(highs, lows, closes) {
+  const n = closes.length;
+  if (n < 30) return { count: 0, avgPct: 0, thresholdPct: 0 };
+  const atr = atrSeries(highs, lows, closes);
+  let s = 0, c = 0;
+  for (let i = 0; i < n; i++) {
+    if (atr[i] != null && closes[i] > 0) { s += atr[i] / closes[i]; c++; }
+  }
+  const th = Math.min(0.15, Math.max(0.04, (c ? s / c : 0.05) * 3)); // 3×ATR%, kẹp [4%, 15%]
+  const swings = [];
+  let pivot = closes[0], extreme = closes[0], dir = 0;
+  for (let i = 1; i < n; i++) {
+    const p = closes[i];
+    if (dir === 0) {
+      if (p >= pivot * (1 + th)) { dir = 1; extreme = p; }
+      else if (p <= pivot * (1 - th)) { dir = -1; extreme = p; }
+    } else if (dir === 1) {
+      if (p > extreme) extreme = p;
+      else if (p <= extreme * (1 - th)) {
+        swings.push(extreme / pivot - 1); // nhịp tăng vừa kết thúc
+        pivot = extreme; extreme = p; dir = -1;
+      }
+    } else {
+      if (p < extreme) extreme = p;
+      else if (p >= extreme * (1 + th)) {
+        swings.push(extreme / pivot - 1); // nhịp giảm vừa kết thúc (giá trị âm)
+        pivot = extreme; extreme = p; dir = 1;
+      }
+    }
+  }
+  if (dir !== 0 && Math.abs(extreme / pivot - 1) >= th) swings.push(extreme / pivot - 1); // nhịp đang mở
+  const count = swings.length;
+  const avgPct = count ? (swings.reduce((a, b) => a + Math.abs(b), 0) / count) * 100 : 0;
+  return { count, avgPct, thresholdPct: th * 100 };
 }
 
 /* ================= Chấm điểm & đề xuất ================= */
@@ -245,6 +319,7 @@ function buildSignal(d, dH, ticker) {
   const boll = bollingerLast(closes);
   const obv = obvSlope(closes, volumes);
   const div = findDivergence(closes, rsiArr);
+  const swing = swingStats(highs, lows, closes);
 
   // Xu hướng khung thời gian lớn hơn (hợp lưu đa khung — lọc 40-60% tín hiệu nhiễu)
   let htf = 0;
@@ -261,13 +336,44 @@ function buildSignal(d, dH, ticker) {
   let takerRatio = null;
   if (takerBuy && volumes) {
     let tb = 0, tv = 0;
-    for (let i = Math.max(0, n - 10); i < n; i++) { tb += takerBuy[i]; tv += volumes[i]; }
+    for (let i = Math.max(0, n - 10); i < n; i++) {
+      if (Number.isFinite(takerBuy[i]) && Number.isFinite(volumes[i])) { tb += takerBuy[i]; tv += volumes[i]; }
+    }
     if (tv > 0) takerRatio = tb / tv;
   }
 
   let score = 0;
   const reasons = []; // {text, dir: +1|-1|0}
   const add = (pts, text) => { score += pts; reasons.push({ text, dir: Math.sign(pts) }); };
+
+  // ==== Vị trí giá trong biên độ — cố vấn THỜI ĐIỂM vào/ra lệnh (không cộng điểm) ====
+  // Backtest walk-forward 14 coin × khung 1d + 4h (2023-2026) cho thấy: cộng điểm mua ở đáy
+  // làm GIẢM độ chính xác (bắt dao rơi — nhịp hồi 3 nến trong downtrend đa số thất bại),
+  // trong khi chốt chặn cuối (không mua đuổi đỉnh / không bán tháo đáy) là phần tạo lợi thế.
+  // Vì vậy vùng giá chỉ hiển thị làm lời khuyên thời điểm + làm chốt chặn ở cuối hàm.
+  const pos = pricePosition(highs, lows, last, 90);
+  const turn = reversalTurn(closes, rsiArr, hist, stArr);
+  const posPct = Math.round(pos * 100);
+  if (pos <= 0.30) {
+    if (turn.up >= 3) reasons.push({ text: `🎯 Giá ở vùng ĐÁY (${posPct}% biên độ 90 nến) và động lượng đã quay đầu tăng (${turn.up}/4 tín hiệu) — thời điểm vào lệnh đẹp nếu tổng tín hiệu chuyển MUA`, dir: 1 });
+    else if (turn.down >= 3) reasons.push({ text: `Giá ở vùng đáy (${posPct}% biên độ) nhưng vẫn đang rơi ("dao rơi") — CHỜ động lượng đảo chiều rồi hãy tính chuyện mua`, dir: 0 });
+    else reasons.push({ text: `Giá ở vùng thấp (${posPct}% biên độ 90 nến) — đưa vào danh sách theo dõi, chờ động lượng xác nhận quay đầu tăng`, dir: 0 });
+  } else if (pos >= 0.70) {
+    if (turn.down >= 3) reasons.push({ text: `🎯 Giá ở vùng ĐỈNH (${posPct}% biên độ 90 nến) và động lượng đã quay đầu giảm (${turn.down}/4 tín hiệu) — thời điểm chốt lời đẹp nếu đang nắm giữ`, dir: -1 });
+    else if (turn.up >= 3) reasons.push({ text: `Giá ở vùng đỉnh (${posPct}% biên độ) nhưng đà tăng còn mạnh — nắm giữ với trailing stop, KHÔNG mua đuổi thêm`, dir: 0 });
+    else reasons.push({ text: `Giá ở vùng cao (${posPct}% biên độ 90 nến) — cân nhắc chốt lời dần, không mở vị thế mua mới`, dir: 0 });
+  }
+
+  // ==== Nguyên tắc dao động lịch sử — chỉ tư vấn & xếp hạng, KHÔNG cộng/nhân điểm ====
+  // Backtest vòng 4-5 (14 coin × 1d + 4h): nhân điểm theo dao động làm tăng tín hiệu yếu vượt
+  // ngưỡng → trung vị lợi nhuận sụp; event-study cho thấy tín hiệu BÁN trên coin dao động cao
+  // đúng hướng 62% (vs 47% ở coin dao động thấp), nhưng tín hiệu MUA trên nhóm dao động cực cao
+  // lại kém nhất — nên chỉ hiển thị làm lời khuyên và tiêu chí sắp xếp danh sách.
+  if (swing.count >= 5 && swing.avgPct >= 2 * swing.thresholdPct) {
+    reasons.push({ text: `Coin có tỉ lệ tăng giảm lịch sử CAO: ${swing.count} nhịp ±${swing.avgPct.toFixed(0)}%/nhịp trong ${n} nến — hợp lối mua đáy/bán đỉnh; tín hiệu BÁN nhóm này đáng tin, tín hiệu MUA nên vào lệnh từng phần`, dir: 0 });
+  } else if (swing.count <= 2) {
+    reasons.push({ text: `Lịch sử ít nhịp dao động lớn (${swing.count} nhịp ≥${swing.thresholdPct.toFixed(0)}% trong ${n} nến) — biên độ hẹp, cơ hội lướt nhịp mua đáy/bán đỉnh thấp`, dir: 0 });
+  }
 
   // ==== Sức mạnh xu hướng (ADX) — cổng lọc ====
   if (adx != null) {
@@ -293,8 +399,8 @@ function buildSignal(d, dH, ticker) {
   if (div.bear) add(-2, 'PHÂN KỲ GIẢM: giá tạo đỉnh cao hơn nhưng RSI tạo đỉnh thấp hơn — lực mua đang yếu');
 
   // ==== Dòng tiền (OBV + taker buy) ====
-  if (obv > 0.02) add(1, 'OBV tăng — dòng khối lượng xác nhận lực mua');
-  else if (obv < -0.02) add(-1, 'OBV giảm — dòng khối lượng xác nhận lực bán');
+  if (obv > 0.15) add(1, 'OBV tăng — dòng khối lượng xác nhận lực mua');
+  else if (obv < -0.15) add(-1, 'OBV giảm — dòng khối lượng xác nhận lực bán');
   if (takerRatio != null) {
     if (takerRatio >= 0.55) add(1, `Bên mua chủ động chiếm ${(takerRatio * 100).toFixed(0)}% khối lượng 10 nến gần nhất`);
     else if (takerRatio <= 0.45) add(-1, `Bên bán chủ động chiếm ${((1 - takerRatio) * 100).toFixed(0)}% khối lượng 10 nến gần nhất`);
@@ -356,6 +462,17 @@ function buildSignal(d, dH, ticker) {
   if (chg <= -6 && rsi != null && rsi < 38) add(1, `Giảm ${pctS(chg)} trong 24h kèm RSI thấp — cơ hội bắt đáy ngắn hạn (rủi ro cao)`);
   if (chg >= 9 && rsi != null && rsi > 65) add(-1, `Tăng ${pctS(chg)} trong 24h kèm RSI cao — dễ có nhịp chốt lời`);
 
+  // ==== Chốt chặn: không MUA ĐUỔI ở đỉnh, không BÁN THÁO ở đáy ====
+  // Áp dụng vô điều kiện: mua chỉ đề xuất khi giá thấp, bán chỉ đề xuất khi giá cao —
+  // kể cả khi động lượng cùng chiều còn mạnh (khi đó lời khuyên là nắm giữ/chờ, không đuổi lệnh).
+  if (score > 0 && pos >= 0.70) {
+    score *= 0.5;
+    reasons.push({ text: `Điểm mua bị giảm 50% vì giá đã ở vùng cao (${posPct}% biên độ) — tránh mua đuổi đỉnh, chờ nhịp điều chỉnh`, dir: -1 });
+  } else if (score < 0 && pos <= 0.30) {
+    score *= 0.5;
+    reasons.push({ text: `Điểm bán bị giảm 50% vì giá đã ở vùng đáy (${posPct}% biên độ) — tránh bán tháo ở đáy, khả năng hồi phục gần`, dir: 1 });
+  }
+
   score = Math.round(score * 10) / 10;
   let verdict, cls;
   if (score >= 6)       { verdict = 'MUA MẠNH'; cls = 'buy strong'; }
@@ -381,9 +498,32 @@ function buildSignal(d, dH, ticker) {
     score, verdict, cls, reasons, trend, rsi, ema20, ema50,
     macdObj: { macd, signal, hist }, rsiArr, momoUp, momoDown,
     adx, st, boll, htf, div, takerRatio, risk,
+    pricePos: pos, turnUp: turn.up, turnDown: turn.down, swing,
   };
 }
 
+
+/* ================= Quy tắc thông báo theo danh mục ================= */
+
+// Ưu tiên cảnh báo theo danh mục: coin ĐANG GIỮ ưu tiên BÁN (bảo vệ vốn, báo cả BÁN thường),
+// coin CHƯA GIỮ ưu tiên MUA (chỉ MUA MẠNH; BÁN coin không có là vô hành động).
+//   cls: chuỗi cls của tín hiệu ('buy'|'buy strong'|'sell'|'sell strong'|'hold')
+//   held: true/false theo danh mục, hoặc null nếu chưa có dữ liệu danh mục
+//   watched: coin đang được ★ theo dõi đặc biệt
+// Trả về mức ưu tiên 0-5 (0 = không báo; số càng lớn báo càng trước khi phải cắt bớt).
+function alertPriority(cls, held, watched) {
+  const isBuy = cls.startsWith('buy');
+  const isSell = cls.startsWith('sell');
+  if (!isBuy && !isSell) return 0;
+  const strong = cls.includes('strong');
+  if (held == null) return strong ? (isSell ? 2 : 1) : 0; // chưa kết nối API: hành vi cũ, chỉ tín hiệu MẠNH
+  if (held) {
+    if (isSell) return strong ? 5 : 4; // bảo vệ vốn: báo cả BÁN thường, không đợi BÁN MẠNH
+    return strong ? 1 : 0;             // mua thêm coin đang giữ: ưu tiên thấp nhất
+  }
+  if (isBuy) return strong ? 3 : 0;    // cơ hội mua mới cho coin chưa có
+  return strong && watched ? 2 : 0;    // BÁN coin chưa giữ: chỉ báo nếu đang ★ theo dõi
+}
 
 const HTF_MAP = { '15m': '1h', '1h': '4h', '4h': '1d', '1d': '1w', '1w': '1M' };
 
@@ -406,6 +546,6 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     emaSeries, rsiSeries, macdSeries, atrSeries, adxSeries, supertrendDir,
     bollingerLast, obvSlope, findDivergence, crossedWithin, turnedPositiveWithin,
-    buildSignal, parseKlines, HTF_MAP,
+    pricePosition, reversalTurn, swingStats, alertPriority, buildSignal, parseKlines, HTF_MAP,
   };
 }
