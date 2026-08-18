@@ -177,6 +177,24 @@ body {
   .layout { grid-template-columns: 1fr; gap: 16px; }
   .splitter { display: none; }
 }
+/* Điện thoại ngang: chia ngang danh sách | chi tiết, mỗi bên cuộn riêng */
+@media (max-width: 1080px) and (orientation: landscape) {
+  html, body { height: 100%; }
+  body { overflow: hidden; display: flex; flex-direction: column; }
+  .topbar, .controls, .market-bar { flex-shrink: 0; }
+  .layout {
+    grid-template-columns: 35% 1fr;
+    gap: 1px; padding: 0 1px 1px;
+    flex: 1; min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .panel { min-height: 0; height: 100%; }
+  .table-panel { display: flex; flex-direction: column; }
+  .table-scroll { flex: 1; overflow-y: auto; scrollbar-width: thin; }
+  .layout .detail-panel { overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; }
+  .heat-holder { height: auto; flex: 1; }
+  .disclaimer { flex-shrink: 0; }
+}
 .panel {
   background: var(--surface-1);
   border: 1px solid var(--border);
@@ -462,6 +480,18 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
   .rsi-holder canvas { height: 76px; }
   .ind-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
   .disclaimer { margin: 0 1px 1px; }
+}
+/* Điện thoại ngang nhỏ: bảng thu gọn thêm */
+@media (max-width: 1080px) and (orientation: landscape) and (max-height: 420px) {
+  .topbar { gap: 4px; padding: 0; }
+  .controls { padding: 0; gap: 3px; }
+  .market-bar { gap: 2px; padding: 0; margin-bottom: 0; }
+  .m-tile { padding: 1px 4px; }
+  .m-tile .k { display: none; }
+  .badge { font-size: 10px; padding: 1px 4px; }
+  .chart-holder canvas { height: 140px; }
+  .rsi-holder canvas { height: 60px; }
+  .disclaimer { font-size: 10px; padding: 0 4px; }
 }
 /* Vùng chạm tối thiểu cho ngôi sao trên thiết bị cảm ứng */
 @media (pointer: coarse) {
