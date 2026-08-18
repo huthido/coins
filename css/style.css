@@ -317,7 +317,7 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
 /* pan-y: vuốt DỌC trên biểu đồ vẫn cuộn trang bình thường (mobile);
  * kéo NGANG để pan và pinch 2 ngón để zoom do JS xử lý */
 #priceChart { touch-action: pan-y; cursor: crosshair; }
-.vol-holder canvas { height: 56px; }
+.vol-holder canvas { height: 36px; }
 .chart-legend { display: flex; gap: 8px; font-size: 10px; color: var(--ink-2); flex-wrap: wrap; }
 .chart-legend .key { display: inline-flex; align-items: center; gap: 4px; }
 .chart-legend .swatch { width: 10px; height: 2px; border-radius: 1px; display: inline-block; }
