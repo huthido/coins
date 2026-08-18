@@ -1801,6 +1801,10 @@ function bindEvents() {
     $('toolbar').classList.toggle('hidden', collapsed);
   });
 
+  $('toolbarToggle').addEventListener('click', () => {
+    $('toolbar').classList.toggle('hidden');
+  });
+
   // Bấm vào ô trên bản đồ nhiệt → chọn coin
   $('heatCanvas').addEventListener('click', (e) => {
     const cell = heatCellAt(e);
