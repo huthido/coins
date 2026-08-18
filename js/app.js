@@ -834,8 +834,9 @@ function updateView() {
   $('tableScroll').hidden = heat;
   $('heatHolder').hidden = !heat;
   const layout = document.querySelector('.layout');
-  layout.classList.remove('collapsed');
-  $('controls').classList.remove('hidden');
+  if (layout) layout.classList.remove('collapsed');
+  const ctrl = document.querySelector('.controls');
+  if (ctrl) ctrl.classList.remove('hidden');
   $('marketBar').classList.remove('hidden');
   document.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('active', b.dataset.view === state.view));
   if (heat) drawHeatmap();
@@ -1799,7 +1800,7 @@ function bindEvents() {
 
   $('collapseBtn').addEventListener('click', () => {
     const collapsed = document.querySelector('.layout').classList.toggle('collapsed');
-    $('controls').classList.toggle('hidden', collapsed);
+    document.querySelector('.controls').classList.toggle('hidden', collapsed);
     $('marketBar').classList.toggle('hidden', collapsed);
   });
 
