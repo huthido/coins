@@ -1489,7 +1489,9 @@ async function refreshBalances(force = false) {
     if (state.selected !== sym) return; // người dùng đã chọn coin khác
     // Làm tròn XUỐNG khi hiển thị — nếu làm tròn lên, gõ đúng số hiển thị sẽ vượt
     // số dư thật và Binance từ chối lệnh (-2010 insufficient balance)
-    let txt = `Khả dụng (Spot): ${floorTo(b.USDT, 2).toLocaleString('en-US', { maximumFractionDigits: 2 })} USDT · ${floorTo(b[base], 8).toLocaleString('en-US', { maximumFractionDigits: 8 })} ${base}`;
+    const px = (state.tickers.find(t => t.symbol === sym) || {}).price || 0;
+    const baseVal = b[base] > 0 && px > 0 ? ` (≈ ${floorTo(b[base] * px, 2).toLocaleString('en-US', { maximumFractionDigits: 2 })} USDT)` : '';
+    let txt = `Khả dụng (Spot): ${floorTo(b.USDT, 2).toLocaleString('en-US', { maximumFractionDigits: 2 })} USDT · ${floorTo(b[base], 8).toLocaleString('en-US', { maximumFractionDigits: 8 })} ${base}${baseVal}`;
     const stuck = [];
     if (b.lockedQuote > 0.01 || b.lockedBase > 0) {
       stuck.push(`khóa trong lệnh mở: ${floorTo(b.lockedQuote, 2)} USDT · ${floorTo(b.lockedBase, 8)} ${base}`);
