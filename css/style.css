@@ -370,6 +370,7 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
 }
 .trade-unit { font-size: 12px; color: var(--ink-muted); min-width: 38px; }
 .btn-sm { padding: 3px 8px; font-size: 12px; }
+#zoomReset { white-space: nowrap; } /* "⟲ Toàn bộ" không được xuống dòng khi chật chỗ */
 .trade-submit { margin-top: 8px; width: 100%; font-weight: 600; }
 .trade-submit.buy { color: var(--good-text); border-color: var(--good); }
 .trade-submit.sell { color: var(--critical); border-color: var(--critical); }
