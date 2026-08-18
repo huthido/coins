@@ -204,9 +204,17 @@ body {
 
 /* ==== Chuyển bảng / bản đồ nhiệt ==== */
 .table-head {
-  display: flex; justify-content: flex-end;
+  display: flex; align-items: center; gap: 6px; justify-content: flex-end;
   padding: 4px 6px; border-bottom: 1px solid var(--grid);
 }
+.collapse-btn {
+  display: none; font-size: 14px; line-height: 1;
+  background: none; border: none; color: var(--ink-muted); cursor: pointer;
+  padding: 2px 4px; border-radius: 4px;
+  transition: transform .2s;
+}
+.collapse-btn:hover { color: var(--ink-1); background: var(--hover-wash); }
+.layout.collapsed .collapse-btn { transform: rotate(-90deg); }
 .view-seg button { padding: 3px 10px; font-size: 12px; }
 .heat-holder { position: relative; flex: 1; min-height: 320px; }
 .heat-holder canvas { display: block; width: 100%; height: 100%; cursor: pointer; }
@@ -471,12 +479,19 @@ tbody tr.selected { background: var(--hover-wash); box-shadow: inset 3px 0 0 var
   .seg button { flex: 1; padding: 8px 4px; }
   #filterSel, #sortSel, #assetSel { flex: 1 1 45%; min-width: 0; }
   .status-pill { margin-left: 0; flex-basis: 100%; }
+  .collapse-btn { display: inline-block; }
   .layout {
     grid-template-columns: 1fr;
     grid-template-rows: 1fr 1fr;
     gap: 1px; padding: 0 1px 1px;
     flex: 1; min-height: 0;
+    transition: grid-template-rows .25s ease;
   }
+  .layout.collapsed {
+    grid-template-rows: auto 1fr;
+  }
+  .layout.collapsed .table-scroll,
+  .layout.collapsed .heat-holder { display: none; }
   .panel { min-height: 0; height: 100%; }
   .table-panel { display: flex; flex-direction: column; }
   .table-scroll { flex: 1; overflow-y: auto; scrollbar-width: thin; }
